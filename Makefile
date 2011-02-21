@@ -1,10 +1,10 @@
-all: clean configure build
+all: clean configure compile
 
 configure:
 	CXXFLAGS=-I/usr/local/BerkeleyDB.5.1/include LINKFLAGS=-L/usr/local/BerkeleyDB.5.1/lib node-waf configure
 
-build:
-	node-wav build
+compile:
+	node-waf build
 
 clean:
 	node-waf clean

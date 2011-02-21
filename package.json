@@ -1,0 +1,35 @@
+{ 
+  "name" : "bdb", 
+  "version" : "1.0.0",
+  "main" : "bdb_bindings",
+  "description" : "Berkeley DB bindings for node",
+  "keywords": [
+    "bdb",
+	"db",
+	"berkeleydb",
+	"storage"
+   ],
+   "maintainers": [
+     {
+       "name": "Mark Cavage",
+       "email": "mcavage@gmail.com",
+       "web": "http://www.joyent.com",
+       "twitter": "mcavage"
+     } 
+   ],
+   "licenses": [
+     {
+       "type": "MIT"
+     } 
+   ],
+   "directories": {
+     "examples": "examples",
+     "src": "src"
+   },
+   "engines": {
+     "node": ">=0.4.0"
+   },
+   "scripts": {
+     "install": "make configure build"
+   }
+}

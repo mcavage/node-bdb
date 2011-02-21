@@ -43,7 +43,7 @@ int DbEnv::EIO_Open(eio_req *req) {
 	  env->open(env,
 				baton->db_home.empty() ? NULL : baton->db_home.c_str(),
 				baton->flags,
-				baton->mode);
+				baton->mode);	
   }
 
   return 0;

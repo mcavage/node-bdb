@@ -101,7 +101,7 @@ int Db::EIO_Get(eio_req *req) {
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
   
   DB *&db = baton->db->_db;
-
+  baton->value.flags = DB_DBT_MALLOC;
   if(db != NULL) {
 	baton->status = 
 	  db->get(db,
@@ -136,7 +136,8 @@ int Db::EIO_AfterGet(eio_req *req) {
   }
   
   baton->db->Unref();
-  baton->cb.Dispose();  
+  baton->cb.Dispose();
+  if(baton->value.data != NULL) free(baton->value.data);
   delete baton;
   return 0;
 }

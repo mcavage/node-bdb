@@ -28,7 +28,7 @@ public:
   static int EIO_Callback(eio_req *req);
 
   static const DBTYPE DEF_TYPE = DB_BTREE;
-  static const int DEF_OPEN_FLAGS = DB_CREATE;
+  static const int DEF_OPEN_FLAGS = DB_CREATE | DB_THREAD;
   static const int DEF_DATA_FLAGS = 0;
 
 private:

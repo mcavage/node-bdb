@@ -5,6 +5,7 @@
 
 #include <db.h>
 #include <node.h>
+#include <node_buffer.h>
 #include <v8.h>
 
 extern v8::Persistent<v8::String> status_code_sym;
@@ -32,7 +33,7 @@ extern v8::Persistent<v8::String> err_message_sym;
   REQ_ARGS();													\
   if(args.Length() <= (I) || !args[I]->IsInt32())				\
 	RET_EXC("argument " #I " must be an integer");				\
-  Local<v8::Integer> VAR(args[I]->ToInteger());
+  v8::Local<v8::Integer> VAR(args[I]->ToInteger());
 
 #define REQ_STR_ARG(I, VAR)                             \
   REQ_ARGS();											\
@@ -44,7 +45,17 @@ extern v8::Persistent<v8::String> err_message_sym;
   REQ_ARGS();											\
   if(args.Length() <= (I) || !args[I]->IsObject())		\
 	RET_EXC("argument " #I " must be a object");		\
-  Local<v8::Object> VAR(args[I]->ToObject());
+  v8::Local<v8::Object> VAR(args[I]->ToObject());
+
+#define REQ_BUF_ARG(I, VAR)									\
+  REQ_ARGS();												\
+  v8::Local<v8::Value> __ ## VAR = args[I];					\
+  if (!node::Buffer::HasInstance(__ ## VAR))				\
+	RET_EXC("argument " #I " must be a buffer");			\
+  v8::Local<v8::Object> _ ## VAR = __ ## VAR->ToObject();	\
+  char *VAR = Buffer::Data(_ ## VAR);						\
+  size_t VAR ## _len = Buffer::Length(_ ## VAR);			
+
 
 #define SLURP_OBJECT(OBJ, MEMBER, VALP) \
   if (!(OBJ)->IsObject()) {											\

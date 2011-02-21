@@ -121,15 +121,7 @@ void DbEnv::Initialize(Handle<Object> target) {
   
   Local<FunctionTemplate> t = FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
-  
-  NODE_DEFINE_CONSTANT(target, DB_CREATE);
-  NODE_DEFINE_CONSTANT(target, DB_INIT_CDB);
-  NODE_DEFINE_CONSTANT(target, DB_INIT_LOCK);
-  NODE_DEFINE_CONSTANT(target, DB_INIT_LOG);
-  NODE_DEFINE_CONSTANT(target, DB_INIT_MPOOL);
-  NODE_DEFINE_CONSTANT(target, DB_INIT_REP);
-  NODE_DEFINE_CONSTANT(target, DB_INIT_TXN);
-  
+ 
   NODE_SET_PROTOTYPE_METHOD(t, "open", Open);
   
   target->Set(String::NewSymbol("DbEnv"), t->GetFunction());

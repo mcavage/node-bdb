@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <node_buffer.h>
+
 #include "bdb_db.h"
 #include "bdb_env.h"
 
@@ -23,7 +25,20 @@ struct eio_open_baton_t: eio_baton_t {
   int flags;
   int mode;
 };
-  
+
+struct eio_data_baton_t: eio_baton_t {
+  eio_data_baton_t() : 
+	eio_baton_t(), flags(0) {
+
+	memset(&key, 0, sizeof(DBT));
+	memset(&value, 0, sizeof(DBT));
+  }
+
+  DBT key;
+  DBT value;
+  int flags;
+};
+
 
 Db::Db(): _db(0) {}
 
@@ -53,7 +68,7 @@ int Db::EIO_Open(eio_req *req) {
 			   NULL, // db - this is generally useless, so hide it
 			   baton->type,
 			   baton->flags,
-			   baton->mode);	
+			   baton->mode);
   }
 
   return 0;
@@ -63,7 +78,90 @@ int Db::EIO_AfterOpen(eio_req *req) {
   HandleScope scope;
   eio_open_baton_t *baton = static_cast<eio_open_baton_t *>(req->data);
   ev_unref(EV_DEFAULT_UC);
+  
+  DB_RES(baton->status, db_strerror(baton->status), msg);
+  Local<Value> argv[1] = { msg };
+  
+  TryCatch try_catch;
+  
+  baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
+  
+  if (try_catch.HasCaught()) {
+	FatalException(try_catch);
+  }
+
+  baton->db->Unref();  
+  baton->cb.Dispose();
+  if(baton->file != NULL) free(baton->file);
+  delete baton;
+  return 0;
+}
+
+int Db::EIO_Get(eio_req *req) {
+  eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
+  
+  DB *&db = baton->db->_db;
+
+  if(db != NULL) {
+	baton->status = 
+	  db->get(db,
+			  NULL, // txn
+			  &(baton->key),
+			  &(baton->value),
+			  baton->flags);
+  }
+
+  return 0;
+}
+
+int Db::EIO_AfterGet(eio_req *req) {
+  HandleScope scope;
+  eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
+  ev_unref(EV_DEFAULT_UC);
+  
+  DB_RES(baton->status, db_strerror(baton->status), msg);
+  Buffer *buf = Buffer::New(baton->value.size);
+  memcpy(Buffer::Data(buf), baton->value.data, baton->value.size);
+
+  Handle<Value> argv[2];
+  argv[0] = msg;
+  argv[1] = buf->handle_;
+
+  TryCatch try_catch;
+  
+  baton->cb->Call(Context::GetCurrent()->Global(), 2, argv);
+  
+  if (try_catch.HasCaught()) {
+	FatalException(try_catch);
+  }
+  
   baton->db->Unref();
+  baton->cb.Dispose();  
+  delete baton;
+  return 0;
+}
+
+int Db::EIO_Put(eio_req *req) {
+  eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
+  
+  DB *&db = baton->db->_db;
+
+  if(db != NULL) {
+	baton->status = 
+	  db->put(db,
+			  NULL, // txn
+			  &(baton->key),
+			  &(baton->value),
+			  baton->flags);
+  }
+
+  return 0;
+}
+
+int Db::EIO_AfterPut(eio_req *req) {
+  HandleScope scope;
+  eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
+  ev_unref(EV_DEFAULT_UC);
   
   DB_RES(baton->status, db_strerror(baton->status), msg);
   Local<Value> argv[1] = { msg };
@@ -76,9 +174,46 @@ int Db::EIO_AfterOpen(eio_req *req) {
 	FatalException(try_catch);
   }
   
-  baton->cb.Dispose();
+  baton->db->Unref();
+  baton->cb.Dispose();  
+  delete baton;
+  return 0;
+}
+
+int Db::EIO_Del(eio_req *req) {
+  eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
   
-  if(baton->file != NULL) free(baton->file);
+  DB *&db = baton->db->_db;
+
+  if(db != NULL) {
+	baton->status = 
+	  db->del(db,
+			  NULL, // txn
+			  &(baton->key),
+			  baton->flags);
+  }
+
+  return 0;
+}
+
+int Db::EIO_AfterDel(eio_req *req) {
+  HandleScope scope;
+  eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
+  ev_unref(EV_DEFAULT_UC);
+  
+  DB_RES(baton->status, db_strerror(baton->status), msg);
+  Local<Value> argv[1] = { msg };
+  
+  TryCatch try_catch;
+  
+  baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
+  
+  if (try_catch.HasCaught()) {
+	FatalException(try_catch);
+  }
+  
+  baton->db->Unref();
+  baton->cb.Dispose();  
   delete baton;
   return 0;
 }
@@ -138,36 +273,90 @@ Handle<Value> Db::Open(const Arguments& args) {
   return Undefined();
 }
 
-Handle<Value> Db::Put(const Arguments& args) {
+Handle<Value> Db::Get(const Arguments& args) {
   HandleScope scope;
 
-  /*  
   Db* db = ObjectWrap::Unwrap<Db>(args.This());
-
-  int flags = DEF_PUT_FLAGS;
+  int flags = DEF_DATA_FLAGS;
 
   REQ_FN_ARG(args.Length() - 1, cb);
 
-  REQ_STR_ARG(1, file);
-  if(file.length() <= 0) {
-	RET_EXC("file cannot be empty or undefined");
+  REQ_BUF_ARG(0, key);
+  if(args.Length() > 3) {
+	REQ_INT_ARG(2, tmp);
+	flags = tmp->Value();
   }
-  DBT key, data;
 
-
-  db->_file = *file;
-  db->_type = type;
-  db->_flags = flags;
-  db->_mode = mode;
-
-  eio_baton_t *baton = new eio_baton_t();
+  eio_data_baton_t *baton = new eio_data_baton_t();
   baton->db = db;
   baton->cb = Persistent<Function>::New(cb);
+  baton->flags = flags;
+  baton->key.data = key;
+  baton->key.size = key_len;
   
   db->Ref();  
-  eio_custom(EIO_Open, EIO_PRI_DEFAULT, EIO_AfterOpen, baton);
+  eio_custom(EIO_Get, EIO_PRI_DEFAULT, EIO_AfterGet, baton);
   ev_ref(EV_DEFAULT_UC);
-  */
+
+  return Undefined();
+}
+
+Handle<Value> Db::Put(const Arguments& args) {
+  HandleScope scope;
+
+  Db* db = ObjectWrap::Unwrap<Db>(args.This());
+  int flags = DEF_DATA_FLAGS;
+
+  REQ_FN_ARG(args.Length() - 1, cb);
+
+  REQ_BUF_ARG(0, key);
+  REQ_BUF_ARG(1, value);
+  if(args.Length() > 3) {
+	REQ_INT_ARG(2, tmp);
+	flags = tmp->Value();
+  }
+
+  eio_data_baton_t *baton = new eio_data_baton_t();
+  baton->db = db;
+  baton->cb = Persistent<Function>::New(cb);
+  baton->flags = flags;
+  baton->key.data = key;
+  baton->key.size = key_len;
+  baton->value.data = value;
+  baton->value.size = value_len;
+  
+  db->Ref();  
+  eio_custom(EIO_Put, EIO_PRI_DEFAULT, EIO_AfterPut, baton);
+  ev_ref(EV_DEFAULT_UC);
+
+  return Undefined();
+}
+
+Handle<Value> Db::Del(const Arguments& args) {
+  HandleScope scope;
+
+  Db* db = ObjectWrap::Unwrap<Db>(args.This());
+  int flags = DEF_DATA_FLAGS;
+
+  REQ_FN_ARG(args.Length() - 1, cb);
+
+  REQ_BUF_ARG(0, key);
+  if(args.Length() > 3) {
+	REQ_INT_ARG(2, tmp);
+	flags = tmp->Value();
+  }
+
+  eio_data_baton_t *baton = new eio_data_baton_t();
+  baton->db = db;
+  baton->cb = Persistent<Function>::New(cb);
+  baton->flags = flags;
+  baton->key.data = key;
+  baton->key.size = key_len;
+  
+  db->Ref();  
+  eio_custom(EIO_Del, EIO_PRI_DEFAULT, EIO_AfterDel, baton);
+  ev_ref(EV_DEFAULT_UC);
+
   return Undefined();
 }
 
@@ -185,33 +374,10 @@ void Db::Initialize(Handle<Object> target) {
   Local<FunctionTemplate> t = FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
   
-  /// Open flags
-  // type
-  NODE_DEFINE_CONSTANT(target, DB_BTREE);
-  NODE_DEFINE_CONSTANT(target, DB_HASH);
-  NODE_DEFINE_CONSTANT(target, DB_RECNO);
-  NODE_DEFINE_CONSTANT(target, DB_QUEUE);
-  NODE_DEFINE_CONSTANT(target, DB_UNKNOWN);
-  // flags
-  NODE_DEFINE_CONSTANT(target, DB_AUTO_COMMIT);
-  NODE_DEFINE_CONSTANT(target, DB_CREATE);
-  NODE_DEFINE_CONSTANT(target, DB_EXCL);
-  NODE_DEFINE_CONSTANT(target, DB_MULTIVERSION);
-  NODE_DEFINE_CONSTANT(target, DB_NOMMAP);
-  NODE_DEFINE_CONSTANT(target, DB_RDONLY);
-  NODE_DEFINE_CONSTANT(target, DB_READ_UNCOMMITTED);
-  NODE_DEFINE_CONSTANT(target, DB_THREAD);
-  NODE_DEFINE_CONSTANT(target, DB_TRUNCATE);
-  /// Put flags
-  NODE_DEFINE_CONSTANT(target, DB_APPEND);
-  NODE_DEFINE_CONSTANT(target, DB_NODUPDATA);
-  NODE_DEFINE_CONSTANT(target, DB_NOOVERWRITE);
-  NODE_DEFINE_CONSTANT(target, DB_MULTIPLE);
-  NODE_DEFINE_CONSTANT(target, DB_MULTIPLE_KEY);
-  NODE_DEFINE_CONSTANT(target, DB_OVERWRITE_DUP);
-
   NODE_SET_PROTOTYPE_METHOD(t, "open", Open);
+  NODE_SET_PROTOTYPE_METHOD(t, "get", Get);
   NODE_SET_PROTOTYPE_METHOD(t, "put", Put);
-  
+  NODE_SET_PROTOTYPE_METHOD(t, "del", Del);  
+
   target->Set(String::NewSymbol("Db"), t->GetFunction());
 }

@@ -5,8 +5,6 @@ var util = require('util');
 var Buffer = require('buffer').Buffer;
 var BDB = require('bdb');
 
-var val = new Buffer('mcavage:*:10001:10:Mark J Cavage:/home/mark:/bin/bash');
-
 var uuid = function() {
 	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
 		var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
@@ -17,6 +15,7 @@ var uuid = function() {
 var testBasic = function(db, cb) {
 	var key = uuid();
 	var key = new Buffer(key);
+	var val = new Buffer(uuid());
 	db.put(key, val, function(res) {
 		assert.equal(0, res.code, res.message);		
 		db.get(key, function(res, data) {

@@ -274,6 +274,53 @@ Handle<Value> Db::Open(const Arguments& args) {
   return Undefined();
 }
 
+Handle<Value> Db::OpenSync(const Arguments& args) {
+  HandleScope scope;
+  
+  Db* db = ObjectWrap::Unwrap<Db>(args.This());
+
+  int flags = DEF_OPEN_FLAGS;
+  DBTYPE type = DEF_TYPE;
+  int mode = 0;
+
+  REQ_OBJ_ARG(0, envObj);
+  DbEnv *env = node::ObjectWrap::Unwrap<DbEnv>(envObj);
+
+  REQ_STR_ARG(1, file);
+  if(args.Length() > 2) {
+	REQ_INT_ARG(2, tmp);
+	type = static_cast<DBTYPE>(tmp->Value());
+  }
+  if(args.Length() > 3) {
+	REQ_INT_ARG(3, tmp);
+	flags = tmp->Value();
+  }
+  if(args.Length() > 4) {
+	REQ_INT_ARG(4, tmp);
+	mode = tmp->Value();
+  }
+
+  int rc = 0;
+  if(db->_db == NULL) {
+	rc = db_create(&(db->_db), env->getDB_ENV(), 0);
+  }
+  
+  if(db->_db != NULL && rc == 0) {
+	rc = 
+	  db->_db->open(db->_db,
+					NULL, // txn TODO
+					*file,
+					NULL, // db - this is generally useless, so hide it
+					type,
+					flags,
+					mode);
+  }
+    
+  DB_RES(rc, db_strerror(rc), msg);
+  Handle<Value> result = { msg };
+  return result;
+}
+
 Handle<Value> Db::Get(const Arguments& args) {
   HandleScope scope;
 
@@ -376,6 +423,7 @@ void Db::Initialize(Handle<Object> target) {
   t->InstanceTemplate()->SetInternalFieldCount(1);
   
   NODE_SET_PROTOTYPE_METHOD(t, "open", Open);
+  NODE_SET_PROTOTYPE_METHOD(t, "openSync", OpenSync);
   NODE_SET_PROTOTYPE_METHOD(t, "get", Get);
   NODE_SET_PROTOTYPE_METHOD(t, "put", Put);
   NODE_SET_PROTOTYPE_METHOD(t, "del", Del);  

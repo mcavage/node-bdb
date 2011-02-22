@@ -12,6 +12,7 @@ public:
   
   static v8::Handle<v8::Value> New(const v8::Arguments&);
   static v8::Handle<v8::Value> Open(const v8::Arguments &);
+  static v8::Handle<v8::Value> OpenSync(const v8::Arguments &);
   static v8::Handle<v8::Value> Get(const v8::Arguments &);
   static v8::Handle<v8::Value> Put(const v8::Arguments &);
   static v8::Handle<v8::Value> Del(const v8::Arguments &);

@@ -35,11 +35,12 @@ var testBasic = function(db, cb) {
 
 // Initialize
 var env = new BDB.DbEnv();
+var db = new BDB.Db();
 var env_location = "/tmp/" + uuid();
 fs.mkdirSync(env_location, 0750);
 
 
-var times = 100;
+var ITERATIONS = 1000;
 var createCallback = function(limit, fn){
     var finishedCalls = 0;
     return function() {
@@ -48,19 +49,16 @@ var createCallback = function(limit, fn){
         }
     };
 }
-var callback = createCallback(times, function(){
-    console.log("testBasic: Passed");
+var callback = createCallback(ITERATIONS, function(){
 	exec("rm -fr " + env_location, function(err, stdout, stderr) {});
 });
 
 
-env.open(env_location, function(res) {
-	assert.equal(0, res.code, res.message);
-	var db = new BDB.Db();
-	db.open(env, uuid(), function(err) {
-		assert.equal(0, res.code, res.message);
-		for(var i = 0; i < times; i++) {
-			testBasic(db, callback);
-		}
-	});
-});
+var stat = env.openSync(env_location);
+assert.equal(0, stat.code, stat.message);
+stat = db.openSync(env, uuid());
+assert.equal(0, stat.code, stat.message);
+// Make sure that multiple threads are kicking in for put/get/del
+for(var i = 0; i < ITERATIONS; i++) {
+	testBasic(db, callback);
+}

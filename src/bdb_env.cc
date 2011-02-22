@@ -107,6 +107,53 @@ Handle<Value> DbEnv::Open(const Arguments& args) {
   return Undefined();
 }
 
+v8::Handle<v8::Value> DbEnv::OpenSync(const v8::Arguments &args) {
+  HandleScope scope;
+  
+  DbEnv* env = ObjectWrap::Unwrap<DbEnv>(args.This());
+  int flags = DEF_OPEN_FLAGS;
+  int mode = 0;
+
+  REQ_STR_ARG(0, db_home);
+  if(args.Length() > 1) {
+	REQ_INT_ARG(1, tmp);
+	flags = tmp->Value();
+  }
+  if(args.Length() > 2) {
+	REQ_INT_ARG(2, tmp);
+	mode = tmp->Value();
+  }
+
+  int rc = 0;
+  if(env->_env == NULL) {
+	rc = db_env_create(&(env->_env), 0);
+  }
+  if(env->_env != NULL && rc == 0) {
+	rc = 
+	  env->_env->open(env->_env,
+					  *db_home,
+					  flags,
+					  mode);	
+  }
+
+  DB_RES(rc, db_strerror(rc), msg);
+  Handle<Value> result = { msg };
+  return result;
+}
+
+v8::Handle<v8::Value> DbEnv::SetShmKeySync(const v8::Arguments &args) {
+  HandleScope scope;
+  
+  DbEnv* env = ObjectWrap::Unwrap<DbEnv>(args.This());
+  REQ_INT_ARG(0, shmKey);
+
+  if(env->_env == NULL) RET_EXC("Environment was not opened");
+  
+  int rc = env->_env->set_shm_key(env->_env, shmKey->Value());
+  DB_RES(rc, db_strerror(rc), msg);
+  Handle<Value> result = { msg };
+  return result;
+}
 
 Handle<Value> DbEnv::New(const Arguments& args) {
   HandleScope scope;
@@ -123,6 +170,8 @@ void DbEnv::Initialize(Handle<Object> target) {
   t->InstanceTemplate()->SetInternalFieldCount(1);
  
   NODE_SET_PROTOTYPE_METHOD(t, "open", Open);
-  
+  NODE_SET_PROTOTYPE_METHOD(t, "openSync", OpenSync);
+  NODE_SET_PROTOTYPE_METHOD(t, "setShmKeySync", SetShmKeySync);
+
   target->Set(String::NewSymbol("DbEnv"), t->GetFunction());
 }

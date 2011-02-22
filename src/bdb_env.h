@@ -14,6 +14,8 @@ public:
   
   static v8::Handle<v8::Value> New(const v8::Arguments&);
   static v8::Handle<v8::Value> Open(const v8::Arguments &);
+  static v8::Handle<v8::Value> OpenSync(const v8::Arguments &);
+  static v8::Handle<v8::Value> SetShmKeySync(const v8::Arguments &);
 
   static const int DEF_OPEN_FLAGS = DB_CREATE | DB_INIT_MPOOL | 
 	DB_INIT_CDB | DB_THREAD;

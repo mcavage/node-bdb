@@ -31,7 +31,7 @@ extern v8::Persistent<v8::String> err_message_sym;
 
 #define REQ_INT_ARG(I, VAR)										\
   REQ_ARGS();													\
-  if(args.Length() <= (I) || !args[I]->IsInt32())				\
+  if(args.Length() <= (I) || !args[I]->IsNumber())				\
 	RET_EXC("argument " #I " must be an integer");				\
   v8::Local<v8::Integer> VAR(args[I]->ToInteger());
 

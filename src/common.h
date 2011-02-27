@@ -12,16 +12,16 @@ extern v8::Persistent<v8::String> status_code_sym;
 extern v8::Persistent<v8::String> err_message_sym;
 
 
-#define DB_RES(CODE, MSG, VAR)									\
-  v8::Local<v8::Object> VAR = v8::Object::New();				\
+#define DB_RES(CODE, MSG, VAR)						\
+  v8::Local<v8::Object> VAR = v8::Object::New();			\
   VAR->Set(status_code_sym, v8::Integer::New(CODE));			\
-  VAR->Set(err_message_sym, v8::String::New(MSG));				\
+  VAR->Set(err_message_sym, v8::String::New(MSG));
 
 #define RET_EXC(MSG) return v8::ThrowException(v8::Exception::Error(v8::String::New(MSG)))
 
 #define REQ_ARGS() 	                \
   if(args.Length() == 0)			\
-	RET_EXC("missing arguments");
+	  RET_EXC("missing arguments");
 
 #define REQ_FN_ARG(I, VAR)												\
   REQ_ARGS();															\

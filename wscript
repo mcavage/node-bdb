@@ -27,7 +27,8 @@ def build(bld):
   obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   obj.target = 'bdb_bindings'
   obj.lib = "db-5.1"
-  obj.source = './src/bindings.cc ./src/bdb_env.cc ./src/bdb_db.cc'
+  obj.source = './src/bindings.cc ./src/bdb_env.cc ./src/bdb_db.cc '
+  obj.source += './src/bdb_cursor.cc ./src/bdb_txn.cc '
   obj.name = "node-bdb"
   obj.defines = ['NODE_BDB_REVISION="' + REVISION + '"']
 

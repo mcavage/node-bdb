@@ -3,40 +3,46 @@
 
 #include <node_buffer.h>
 
+#include "bdb_cursor.h"
 #include "bdb_db.h"
 #include "bdb_env.h"
+#include "bdb_txn.h"
 
 using namespace node;
 using namespace v8;
 
 struct eio_baton_t {
-  eio_baton_t() : db(0), status(0) {}
+  eio_baton_t() : db(0), status(0), flags(0) {}
   Db *db;
   int status;
+  int flags;
   v8::Persistent<v8::Function> cb;
 };
 
 struct eio_open_baton_t: eio_baton_t {
-  eio_open_baton_t() : 
-	eio_baton_t(), env(0), file(0), type(DB_UNKNOWN), flags(0), mode(0) {}
+  eio_open_baton_t() :
+    eio_baton_t(), env(0), file(0), type(DB_UNKNOWN), mode(0) {}
   DB_ENV *env;
   char *file;
   DBTYPE type;
-  int flags;
   int mode;
 };
 
 struct eio_data_baton_t: eio_baton_t {
-  eio_data_baton_t() : 
-	eio_baton_t(), flags(0) {
-
-	memset(&key, 0, sizeof(DBT));
-	memset(&value, 0, sizeof(DBT));
+  eio_data_baton_t() : eio_baton_t(), txn(0)  {
+    memset(&key, 0, sizeof(DBT));
+    memset(&value, 0, sizeof(DBT));
   }
 
+  DB_TXN *txn;
   DBT key;
   DBT value;
-  int flags;
+};
+
+struct eio_cursor_baton_t: eio_baton_t {
+  eio_cursor_baton_t() : eio_baton_t(), cursor(0) {}
+
+  DBC *cursor;
 };
 
 
@@ -44,7 +50,7 @@ Db::Db(): _db(0) {}
 
 Db::~Db() {
   if(_db != NULL) {
-	_db->close(_db, 0);
+    _db->close(_db, 0);
   }
 }
 
@@ -52,23 +58,29 @@ Db::~Db() {
 
 int Db::EIO_Open(eio_req *req) {
   eio_open_baton_t *baton = static_cast<eio_open_baton_t *>(req->data);
-  
+
   DB *&db = baton->db->_db;
 
   if(db == NULL) {
-	baton->status = db_create(&db, baton->env, 0);
-	if(baton->status != 0) return 0;
+    baton->status = db_create(&db, baton->env, 0);
+    if(baton->status != 0) return 0;
   }
-  
+
   if(db != NULL && baton->status == 0) {
-	baton->status = 
-	  db->open(db,
-			   NULL, // txn TODO
-			   baton->file,
-			   NULL, // db - this is generally useless, so hide it
-			   baton->type,
-			   baton->flags,
-			   baton->mode);
+    baton->status =
+      db->open(db,
+	       NULL, // txn TODO
+	       baton->file,
+	       NULL,
+	       baton->type,
+	       baton->flags,
+	       baton->mode);
+
+
+    // TODO: REMOVE THESE
+    db->set_errfile(db, stderr);
+    db->set_errpfx(db, "node-bdb");
+
   }
 
   return 0;
@@ -78,19 +90,19 @@ int Db::EIO_AfterOpen(eio_req *req) {
   HandleScope scope;
   eio_open_baton_t *baton = static_cast<eio_open_baton_t *>(req->data);
   ev_unref(EV_DEFAULT_UC);
-  
+
   DB_RES(baton->status, db_strerror(baton->status), msg);
   Local<Value> argv[1] = { msg };
-  
+
   TryCatch try_catch;
-  
+
   baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
-  
+
   if (try_catch.HasCaught()) {
-	FatalException(try_catch);
+    FatalException(try_catch);
   }
 
-  baton->db->Unref();  
+  baton->db->Unref();
   baton->cb.Dispose();
   if(baton->file != NULL) free(baton->file);
   delete baton;
@@ -99,16 +111,12 @@ int Db::EIO_AfterOpen(eio_req *req) {
 
 int Db::EIO_Get(eio_req *req) {
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
-  
+
   DB *&db = baton->db->_db;
   baton->value.flags = DB_DBT_MALLOC;
   if(db != NULL) {
-	baton->status = 
-	  db->get(db,
-			  NULL, // txn
-			  &(baton->key),
-			  &(baton->value),
-			  baton->flags);
+    baton->status =
+      db->get(db, baton->txn, &(baton->key), &(baton->value), baton->flags);
   }
 
   return 0;
@@ -118,7 +126,7 @@ int Db::EIO_AfterGet(eio_req *req) {
   HandleScope scope;
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
   ev_unref(EV_DEFAULT_UC);
-  
+
   DB_RES(baton->status, db_strerror(baton->status), msg);
   Buffer *buf = Buffer::New(baton->value.size);
   memcpy(Buffer::Data(buf), baton->value.data, baton->value.size);
@@ -128,13 +136,13 @@ int Db::EIO_AfterGet(eio_req *req) {
   argv[1] = buf->handle_;
 
   TryCatch try_catch;
-  
+
   baton->cb->Call(Context::GetCurrent()->Global(), 2, argv);
-  
+
   if (try_catch.HasCaught()) {
-	FatalException(try_catch);
+    FatalException(try_catch);
   }
-  
+
   baton->db->Unref();
   baton->cb.Dispose();
   if(baton->value.data != NULL) free(baton->value.data);
@@ -144,16 +152,12 @@ int Db::EIO_AfterGet(eio_req *req) {
 
 int Db::EIO_Put(eio_req *req) {
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
-  
+
   DB *&db = baton->db->_db;
 
   if(db != NULL) {
-	baton->status = 
-	  db->put(db,
-			  NULL, // txn
-			  &(baton->key),
-			  &(baton->value),
-			  baton->flags);
+    baton->status =
+      db->put(db, baton->txn, &(baton->key), &(baton->value), baton->flags);
   }
 
   return 0;
@@ -163,35 +167,31 @@ int Db::EIO_AfterPut(eio_req *req) {
   HandleScope scope;
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
   ev_unref(EV_DEFAULT_UC);
-  
+
   DB_RES(baton->status, db_strerror(baton->status), msg);
   Local<Value> argv[1] = { msg };
-  
+
   TryCatch try_catch;
-  
+
   baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
-  
+
   if (try_catch.HasCaught()) {
-	FatalException(try_catch);
+    FatalException(try_catch);
   }
-  
+
   baton->db->Unref();
-  baton->cb.Dispose();  
+  baton->cb.Dispose();
   delete baton;
   return 0;
 }
 
 int Db::EIO_Del(eio_req *req) {
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
-  
+
   DB *&db = baton->db->_db;
 
   if(db != NULL) {
-	baton->status = 
-	  db->del(db,
-			  NULL, // txn
-			  &(baton->key),
-			  baton->flags);
+    baton->status = db->del(db, baton->txn, &(baton->key), baton->flags);
   }
 
   return 0;
@@ -201,20 +201,59 @@ int Db::EIO_AfterDel(eio_req *req) {
   HandleScope scope;
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
   ev_unref(EV_DEFAULT_UC);
-  
+
   DB_RES(baton->status, db_strerror(baton->status), msg);
   Local<Value> argv[1] = { msg };
-  
+
   TryCatch try_catch;
-  
+
   baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
-  
+
   if (try_catch.HasCaught()) {
-	FatalException(try_catch);
+    FatalException(try_catch);
   }
-  
+
   baton->db->Unref();
-  baton->cb.Dispose();  
+  baton->cb.Dispose();
+  delete baton;
+  return 0;
+}
+
+int Db::EIO_Cursor(eio_req *req) {
+  eio_cursor_baton_t *baton = static_cast<eio_cursor_baton_t *>(req->data);
+
+  DB *&db = baton->db->_db;
+
+  if(db != NULL) {
+    baton->status =
+      db->cursor(db,
+		 NULL, // txn
+		 &(baton->cursor),
+		 baton->flags);
+  }
+
+  return 0;
+}
+
+int Db::EIO_AfterCursor(eio_req *req) {
+  HandleScope scope;
+  eio_cursor_baton_t *baton = static_cast<eio_cursor_baton_t *>(req->data);
+  ev_unref(EV_DEFAULT_UC);
+
+  DB_RES(baton->status, db_strerror(baton->status), msg);
+
+  Local<Value> argv[1] = { msg };
+
+  TryCatch try_catch;
+
+  baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
+
+  if (try_catch.HasCaught()) {
+    FatalException(try_catch);
+  }
+
+  baton->db->Unref();
+  baton->cb.Dispose();
   delete baton;
   return 0;
 }
@@ -223,7 +262,7 @@ int Db::EIO_AfterDel(eio_req *req) {
 
 Handle<Value> Db::Open(const Arguments& args) {
   HandleScope scope;
-  
+
   Db* db = ObjectWrap::Unwrap<Db>(args.This());
 
   int flags = DEF_OPEN_FLAGS;
@@ -237,16 +276,16 @@ Handle<Value> Db::Open(const Arguments& args) {
 
   REQ_STR_ARG(1, file);
   if(args.Length() > 3) {
-	REQ_INT_ARG(2, tmp);
-	type = static_cast<DBTYPE>(tmp->Value());
+    REQ_INT_ARG(2, tmp);
+    type = static_cast<DBTYPE>(tmp->Value());
   }
   if(args.Length() > 4) {
-	REQ_INT_ARG(3, tmp);
-	flags = tmp->Value();
+    REQ_INT_ARG(3, tmp);
+    flags = tmp->Value();
   }
   if(args.Length() > 5) {
-	REQ_INT_ARG(4, tmp);
-	mode = tmp->Value();
+    REQ_INT_ARG(4, tmp);
+    mode = tmp->Value();
   }
 
   eio_open_baton_t *baton = new eio_open_baton_t();
@@ -258,25 +297,25 @@ Handle<Value> Db::Open(const Arguments& args) {
   baton->mode = mode;
 
   if(file.length() > 0) {
-	baton->file = (char *)calloc(1, file.length() + 1);
-	if(baton->file == NULL) {
-	  LOG_OOM();
-	  // WTF to do in node when OOM?
-	} else { 
-	  strncpy(baton->file, *file, file.length());
-	}
+    baton->file = (char *)calloc(1, file.length() + 1);
+    if(baton->file == NULL) {
+      LOG_OOM();
+      // WTF to do in node when OOM?
+    } else {
+      strncpy(baton->file, *file, file.length());
+    }
   }
-  
-  db->Ref();  
+
+  db->Ref();
   eio_custom(EIO_Open, EIO_PRI_DEFAULT, EIO_AfterOpen, baton);
   ev_ref(EV_DEFAULT_UC);
-  
+
   return Undefined();
 }
 
 Handle<Value> Db::OpenSync(const Arguments& args) {
   HandleScope scope;
-  
+
   Db* db = ObjectWrap::Unwrap<Db>(args.This());
 
   int flags = DEF_OPEN_FLAGS;
@@ -288,34 +327,34 @@ Handle<Value> Db::OpenSync(const Arguments& args) {
 
   REQ_STR_ARG(1, file);
   if(args.Length() > 2) {
-	REQ_INT_ARG(2, tmp);
-	type = static_cast<DBTYPE>(tmp->Value());
+    REQ_INT_ARG(2, tmp);
+    type = static_cast<DBTYPE>(tmp->Value());
   }
   if(args.Length() > 3) {
-	REQ_INT_ARG(3, tmp);
-	flags = tmp->Value();
+    REQ_INT_ARG(3, tmp);
+    flags = tmp->Value();
   }
   if(args.Length() > 4) {
-	REQ_INT_ARG(4, tmp);
-	mode = tmp->Value();
+    REQ_INT_ARG(4, tmp);
+    mode = tmp->Value();
   }
 
   int rc = 0;
   if(db->_db == NULL) {
-	rc = db_create(&(db->_db), env->getDB_ENV(), 0);
+    rc = db_create(&(db->_db), env->getDB_ENV(), 0);
   }
-  
+
   if(db->_db != NULL && rc == 0) {
-	rc = 
-	  db->_db->open(db->_db,
-					NULL, // txn TODO
-					*file,
-					NULL, // db - this is generally useless, so hide it
-					type,
-					flags,
-					mode);
+    rc =
+      db->_db->open(db->_db,
+		    NULL, // txn TODO
+		    *file,
+		    NULL, // db - this is generally useless, so hide it
+		    type,
+		    flags,
+		    mode);
   }
-    
+
   DB_RES(rc, db_strerror(rc), msg);
   Handle<Value> result = { msg };
   return result;
@@ -326,23 +365,31 @@ Handle<Value> Db::Get(const Arguments& args) {
 
   Db* db = ObjectWrap::Unwrap<Db>(args.This());
   int flags = DEF_DATA_FLAGS;
+  DB_TXN *dbTxn = NULL;
 
   REQ_FN_ARG(args.Length() - 1, cb);
-
   REQ_BUF_ARG(0, key);
+
+  if(args.Length() > 2) {
+    REQ_INT_ARG(1, tmp);
+    if(tmp->Value() > 0)
+      flags = tmp->Value();
+  }
   if(args.Length() > 3) {
-	REQ_INT_ARG(2, tmp);
-	flags = tmp->Value();
+    REQ_OBJ_ARG(2, txnObj);
+    DbTxn *txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
+    dbTxn = txn->getDB_TXN();
   }
 
   eio_data_baton_t *baton = new eio_data_baton_t();
   baton->db = db;
   baton->cb = Persistent<Function>::New(cb);
   baton->flags = flags;
+  baton->txn = dbTxn;
   baton->key.data = key;
   baton->key.size = key_len;
-  
-  db->Ref();  
+
+  db->Ref();
   eio_custom(EIO_Get, EIO_PRI_DEFAULT, EIO_AfterGet, baton);
   ev_ref(EV_DEFAULT_UC);
 
@@ -354,26 +401,35 @@ Handle<Value> Db::Put(const Arguments& args) {
 
   Db* db = ObjectWrap::Unwrap<Db>(args.This());
   int flags = DEF_DATA_FLAGS;
+  DB_TXN *dbTxn = NULL;
 
   REQ_FN_ARG(args.Length() - 1, cb);
-
   REQ_BUF_ARG(0, key);
   REQ_BUF_ARG(1, value);
+
   if(args.Length() > 3) {
-	REQ_INT_ARG(2, tmp);
-	flags = tmp->Value();
+    REQ_INT_ARG(2, tmp);
+    if(tmp->Value() > 0)
+      flags = tmp->Value();
+  }
+
+  if(args.Length() > 4) {
+    REQ_OBJ_ARG(3, txnObj);
+    DbTxn *txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
+    dbTxn = txn->getDB_TXN();
   }
 
   eio_data_baton_t *baton = new eio_data_baton_t();
   baton->db = db;
   baton->cb = Persistent<Function>::New(cb);
   baton->flags = flags;
+  baton->txn = dbTxn;
   baton->key.data = key;
   baton->key.size = key_len;
   baton->value.data = value;
   baton->value.size = value_len;
-  
-  db->Ref();  
+
+  db->Ref();
   eio_custom(EIO_Put, EIO_PRI_DEFAULT, EIO_AfterPut, baton);
   ev_ref(EV_DEFAULT_UC);
 
@@ -385,24 +441,60 @@ Handle<Value> Db::Del(const Arguments& args) {
 
   Db* db = ObjectWrap::Unwrap<Db>(args.This());
   int flags = DEF_DATA_FLAGS;
+  DB_TXN *dbTxn = NULL;
 
   REQ_FN_ARG(args.Length() - 1, cb);
-
   REQ_BUF_ARG(0, key);
+
+  if(args.Length() > 2) {
+    REQ_INT_ARG(1, tmp);
+    if(tmp->Value() > 0)
+      flags = tmp->Value();
+  }
   if(args.Length() > 3) {
-	REQ_INT_ARG(2, tmp);
-	flags = tmp->Value();
+    REQ_OBJ_ARG(2, txnObj);
+    DbTxn *txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
+    dbTxn = txn->getDB_TXN();
   }
 
   eio_data_baton_t *baton = new eio_data_baton_t();
   baton->db = db;
   baton->cb = Persistent<Function>::New(cb);
   baton->flags = flags;
+  baton->txn = dbTxn;
   baton->key.data = key;
   baton->key.size = key_len;
-  
-  db->Ref();  
+
+  db->Ref();
   eio_custom(EIO_Del, EIO_PRI_DEFAULT, EIO_AfterDel, baton);
+  ev_ref(EV_DEFAULT_UC);
+
+  return Undefined();
+}
+
+Handle<Value> Db::Cursor(const Arguments& args) {
+  HandleScope scope;
+
+  Db* db = ObjectWrap::Unwrap<Db>(args.This());
+  int flags = DEF_DATA_FLAGS;
+
+  REQ_FN_ARG(args.Length() - 1, cb);
+  REQ_OBJ_ARG(0, curObj);
+  DbCursor *cur = node::ObjectWrap::Unwrap<DbCursor>(curObj);
+
+  if(args.Length() > 3) {
+    REQ_INT_ARG(2, tmp);
+    flags = tmp->Value();
+  }
+
+  eio_cursor_baton_t *baton = new eio_cursor_baton_t();
+  baton->db = db;
+  baton->cursor = cur->getDBC();
+  baton->cb = Persistent<Function>::New(cb);
+  baton->flags = flags;
+
+  db->Ref();
+  eio_custom(EIO_Cursor, EIO_PRI_DEFAULT, EIO_AfterCursor, baton);
   ev_ref(EV_DEFAULT_UC);
 
   return Undefined();
@@ -418,15 +510,16 @@ Handle<Value> Db::New(const Arguments& args) {
 
 void Db::Initialize(Handle<Object> target) {
   HandleScope scope;
-  
+
   Local<FunctionTemplate> t = FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
-  
+
   NODE_SET_PROTOTYPE_METHOD(t, "open", Open);
   NODE_SET_PROTOTYPE_METHOD(t, "openSync", OpenSync);
   NODE_SET_PROTOTYPE_METHOD(t, "get", Get);
   NODE_SET_PROTOTYPE_METHOD(t, "put", Put);
-  NODE_SET_PROTOTYPE_METHOD(t, "del", Del);  
+  NODE_SET_PROTOTYPE_METHOD(t, "del", Del);
+  NODE_SET_PROTOTYPE_METHOD(t, "cursor", Cursor);
 
   target->Set(String::NewSymbol("Db"), t->GetFunction());
 }

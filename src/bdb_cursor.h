@@ -15,20 +15,20 @@ public:
   static v8::Handle<v8::Value> Put(const v8::Arguments &);
   static v8::Handle<v8::Value> Del(const v8::Arguments &);
 
-  static int EIO_Get(eio_req *req);
-  static int EIO_AfterGet(eio_req *req);
-  static int EIO_Put(eio_req *req);
-  static int EIO_AfterPut(eio_req *req);
-  static int EIO_Del(eio_req *req);
-  static int EIO_AfterDel(eio_req *req);
-
-  DBC *getDBC();
+  DBC *&getDBC();
 
   static const int DEF_DATA_FLAGS = DB_NEXT;
 
 private:
   DbCursor(const DbCursor &rhs);
   DbCursor &operator=(const DbCursor &rhs);
+
+  static int EIO_Get(eio_req *req);
+  static int EIO_AfterGet(eio_req *req);
+  static int EIO_Put(eio_req *req);
+  static int EIO_AfterPut(eio_req *req);
+  static int EIO_Del(eio_req *req);
+  static int EIO_AfterDel(eio_req *req);
 
   DBC *_cursor;
 };

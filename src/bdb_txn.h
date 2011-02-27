@@ -8,7 +8,7 @@ public:
   DbTxn();
   ~DbTxn();
 
-  DB_TXN *getDB_TXN();
+  DB_TXN *&getDB_TXN();
 
   static void Initialize(v8::Handle<v8::Object>);
 

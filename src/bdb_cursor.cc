@@ -21,6 +21,7 @@ struct eio_data_baton_t {
   DbCursor *cursor;
   int status;
   v8::Persistent<v8::Function> cb;
+  DB_TXN *txn;
   DBT key;
   DBT value;
   int flags;
@@ -35,7 +36,7 @@ DbCursor::~DbCursor() {
   }
 }
 
-DBC *DbCursor::getDBC() {
+DBC *&DbCursor::getDBC() {
   return _cursor;
 }
 
@@ -45,6 +46,7 @@ int DbCursor::EIO_Get(eio_req *req) {
   eio_data_baton_t *baton = static_cast<eio_data_baton_t *>(req->data);
 
   DBC *&cursor = baton->cursor->_cursor;
+  baton->key.flags = DB_DBT_MALLOC;
   baton->value.flags = DB_DBT_MALLOC;
   if(cursor != NULL) {
 	baton->status =
@@ -75,7 +77,7 @@ int DbCursor::EIO_AfterGet(eio_req *req) {
 
   TryCatch try_catch;
 
-  baton->cb->Call(Context::GetCurrent()->Global(), 2, argv);
+  baton->cb->Call(Context::GetCurrent()->Global(), 3, argv);
 
   if (try_catch.HasCaught()) {
 	FatalException(try_catch);

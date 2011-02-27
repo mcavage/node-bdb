@@ -18,7 +18,7 @@ DbTxn::DbTxn(): _txn(0) {}
 
 DbTxn::~DbTxn() {}
 
-DB_TXN *DbTxn::getDB_TXN() {
+DB_TXN *&DbTxn::getDB_TXN() {
   return _txn;
 }
 

@@ -28,7 +28,7 @@ DbEnv::~DbEnv() {
     _env->close(_env, 0);
 }
 
-DB_ENV *DbEnv::getDB_ENV() {
+DB_ENV *&DbEnv::getDB_ENV() {
   return _env;
 }
 
@@ -241,7 +241,7 @@ v8::Handle<v8::Value> DbEnv::TxnBegin(const v8::Arguments &args) {
 	flags = tmp->Value();
   }
   DbTxn *txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
-  DB_TXN *dbTxn = txn->getDB_TXN();
+  DB_TXN *&dbTxn = txn->getDB_TXN();
 
   int rc = env->_env->txn_begin(env->_env,
 				NULL, // parent, todo

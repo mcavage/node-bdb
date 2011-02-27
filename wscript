@@ -2,7 +2,7 @@
 
 import os
 import Options, Utils
-from os import unlink, symlink, chdir, popen
+from os import unlink, symlink, chdir, popen, system
 from os.path import exists, join
 
 srcdir = '.'
@@ -35,8 +35,16 @@ def build(bld):
   if (Options.options.debug != False) and (Options.options.debug == 'true'):
     obj.defines.append('ENABLE_DEBUG=1')
 
+def tests(ctx):
+  system('node test/test_openSync.js')
+  system('node test/test_openAsync.js')
+  system('node test/test_put.js')
+  system('node test/test_get.js')
+  system('node test/test_del.js')
+  system('node test/test_cursor.js')
+
 def shutdown():
   t = 'bdb_bindings.node';
-
   if exists('build/default/' + t) and not exists(t):
     symlink('build/default/' + t, t)
+

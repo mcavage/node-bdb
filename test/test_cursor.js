@@ -31,16 +31,18 @@ var finished = 0;
 for(var i = 0; i < ITERATIONS; i++) {
     load("test", function() {
 	if(++finished >= ITERATIONS) {
+	    var txn = new BDB.DbTxn();
+	    stat = env.txnBegin(txn);
+	    assert.equal(0, stat.code, stat.message);
 	    var cursor = new BDB.DbCursor();
-	    db.cursor(cursor, function(stat) {
-		assert.equal(0, stat.code, stat.message);
-		console.log(require('util').inspect(cursor));
-		cursor.get(BDB.DB_NEXT, function(stat, key, value) {
-		    console.log(require('util').inspect(stat));
-		    console.log(require('util').inspect(key));
-		    console.log(require('util').inspect(value));
-		});
+	    stat = db.cursor(cursor, txn);
+	    assert.equal(0, stat.code, stat.message);
+	    cursor.get(function(stat, key, value) {
+		console.log(require('util').inspect(stat));
+		console.log(require('util').inspect(key.toString(encoding='utf8')));
+		console.log(require('util').inspect(value.toString(encoding='utf8')));
 	    });
 	}
     });
 }
+

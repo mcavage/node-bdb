@@ -8,7 +8,7 @@ public:
   DbEnv();
   ~DbEnv();
 
-  DB_ENV *getDB_ENV();
+  DB_ENV *&getDB_ENV();
 
   static void Initialize(v8::Handle<v8::Object> target);
 

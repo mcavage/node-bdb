@@ -10,7 +10,7 @@ var env_location = "/tmp/" + helper.uuid();
 fs.mkdirSync(env_location, 0750);
 
 var env = new BDB.DbEnv();
-stat = env.open(env_location);
+var stat = env.open(env_location);
 assert.equal(0, stat.code, stat.message);
 
 var db = new BDB.Db();
@@ -20,7 +20,7 @@ assert.equal(0, stat.code, stat.message);
 var key = new Buffer(helper.uuid());
 var val = new Buffer(helper.uuid());
 db.put(key, val, function(res) {
-    assert.equal(0, res.code, res.message);
-    exec("rm -fr " + env_location, function(err, stdout, stderr) {});
-    console.log('test_put: PASSED');
+  assert.equal(0, res.code, res.message);
+  exec("rm -fr " + env_location, function(err, stdout, stderr) {});
+  console.log('test_put: PASSED');
 });

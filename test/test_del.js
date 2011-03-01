@@ -20,13 +20,13 @@ assert.equal(0, stat.code, stat.message);
 var key = new Buffer(helper.uuid());
 var val = new Buffer(helper.uuid());
 db.put(key, val, function(res) {
+  assert.equal(0, res.code, res.message);
+  db.del(key, function(res) {
     assert.equal(0, res.code, res.message);
-    db.del(key, function(res) {
-	assert.equal(0, res.code, res.message);
-	db.get(key, function(res, data) {
-	    assert.equal(BDB.DB_NOTFOUND, res.code, res.message);
-	    exec("rm -fr " + env_location, function(err, stdout, stderr) {});
-	    console.log('test_del: PASSED');
-	});
+    db.get(key, function(res, data) {
+      assert.equal(BDB.DB_NOTFOUND, res.code, res.message);
+      exec("rm -fr " + env_location, function(err, stdout, stderr) {});
+      console.log('test_del: PASSED');
     });
+  });
 });

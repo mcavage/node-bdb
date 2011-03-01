@@ -20,12 +20,12 @@ assert.equal(0, stat.code, stat.message);
 var key = new Buffer(helper.uuid());
 var val = new Buffer(helper.uuid());
 db.put(key, val, function(res) {
+  assert.equal(0, res.code, res.message);
+  db.get(key, function(res, data) {
     assert.equal(0, res.code, res.message);
-    db.get(key, function(res, data) {
-	assert.equal(0, res.code, res.message);
-	assert.ok(data, "no data from get");
-	assert.equal(val, data.toString(encoding='utf8'), 'Data mismatch');
-	exec("rm -fr " + env_location, function(err, stdout, stderr) {});
-	console.log('test_get: PASSED');
-    });
+    assert.ok(data, "no data from get");
+    assert.equal(val, data.toString(encoding='utf8'), 'Data mismatch');
+    exec("rm -fr " + env_location, function(err, stdout, stderr) {});
+    console.log('test_get: PASSED');
+  });
 });

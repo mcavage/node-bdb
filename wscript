@@ -27,8 +27,9 @@ def build(bld):
   obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   obj.target = 'bdb_bindings'
   obj.lib = "db-5.1"
-  obj.source = './src/bindings.cc ./src/bdb_env.cc ./src/bdb_db.cc '
-  obj.source += './src/bdb_cursor.cc ./src/bdb_txn.cc '
+  obj.source = './src/bdb_object.cc ./src/bdb_bindings.cc '
+  obj.source += './src/bdb_env.cc ./src/bdb_db.cc ./src/bdb_cursor.cc '
+  obj.source += './src/bdb_txn.cc '
   obj.name = "node-bdb"
   obj.defines = ['NODE_BDB_REVISION="' + REVISION + '"']
 
@@ -36,12 +37,12 @@ def build(bld):
     obj.defines.append('ENABLE_DEBUG=1')
 
 def tests(ctx):
-  system('node test/test_openSync.js')
-  system('node test/test_openAsync.js')
+  system('node test/test_open.js')
   system('node test/test_put.js')
   system('node test/test_get.js')
   system('node test/test_del.js')
   system('node test/test_cursor.js')
+  system('node test/test_concurrent.js')
 
 def shutdown():
   t = 'bdb_bindings.node';

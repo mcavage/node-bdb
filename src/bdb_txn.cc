@@ -1,18 +1,14 @@
+// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
 #include <string>
+
+#include "bdb_common.h"
 #include "bdb_txn.h"
 
-using namespace node;
-using namespace v8;
+using v8::FunctionTemplate;
+using v8::Persistent;
+using v8::String;
 
 v8::Persistent<v8::String> txn_id_sym;
-
-struct eio_baton_t {
-  eio_baton_t() : txn(0), status(0), flags(0) {}
-  DbTxn *txn;
-  int status;
-  int flags;
-  v8::Persistent<v8::Function> cb;
-};
 
 DbTxn::DbTxn(): _txn(0) {}
 
@@ -25,89 +21,68 @@ DB_TXN *&DbTxn::getDB_TXN() {
 // Start EIO Methods
 
 int DbTxn::EIO_Commit(eio_req *req) {
-  eio_baton_t *baton = static_cast<eio_baton_t *>(req->data);
+  EIOBaton *baton = static_cast<EIOBaton *>(req->data);
 
-  DB_TXN *&txn = baton->txn->_txn;
-
-  if(txn != NULL) {
-    baton->status = txn->commit(txn, baton->flags);
+  if (baton->object == NULL ||
+      dynamic_cast<DbTxn *>(baton->object)->_txn == NULL) {
+    return 0;
   }
+
+  DB_TXN *&txn = dynamic_cast<DbTxn *>(baton->object)->_txn;
+  baton->status = txn->commit(txn, baton->flags);
 
   return 0;
 }
 
 int DbTxn::EIO_Abort(eio_req *req) {
-  eio_baton_t *baton = static_cast<eio_baton_t *>(req->data);
+  EIOBaton *baton = static_cast<EIOBaton *>(req->data);
 
-  DB_TXN *&txn = baton->txn->_txn;
-
-  if(txn != NULL) {
-    baton->status = txn->abort(txn);
+  if (baton->object == NULL ||
+      dynamic_cast<DbTxn *>(baton->object)->_txn == NULL) {
+    return 0;
   }
+
+  DB_TXN *&txn = dynamic_cast<DbTxn *>(baton->object)->_txn;
+  baton->status = txn->abort(txn);
 
   return 0;
 }
-
-int DbTxn::EIO_After(eio_req *req) {
-  HandleScope scope;
-
-  eio_baton_t *baton = static_cast<eio_baton_t *>(req->data);
-  ev_unref(EV_DEFAULT_UC);
-  baton->txn->Unref();
-
-  DB_RES(baton->status, db_strerror(baton->status), msg);
-  Local<Value> argv[1] = { msg };
-
-  TryCatch try_catch;
-
-  baton->cb->Call(Context::GetCurrent()->Global(), 1, argv);
-
-  if (try_catch.HasCaught()) {
-    FatalException(try_catch);
-  }
-
-  baton->cb.Dispose();
-
-  delete baton;
-  return 0;
-}
-
 
 // Start V8 Exposed Methods
 
 v8::Handle<v8::Value> DbTxn::Id(const v8::Arguments &args) {
-  DbTxn* txn = ObjectWrap::Unwrap<DbTxn>(args.This());
+  v8::HandleScope scope;
 
+  DbTxn* txn = node::ObjectWrap::Unwrap<DbTxn>(args.This());
   unsigned int id = txn->_txn->id(txn->_txn);
 
   DB_RES(0, db_strerror(0), msg);
   msg->Set(txn_id_sym, v8::Integer::New(id));
-  v8::Handle<v8::Value> result = { msg };
+  v8::Local<v8::Value> result = { msg };
   return result;
 }
 
 v8::Handle<v8::Value> DbTxn::Abort(const v8::Arguments &args) {
-  HandleScope scope;
+  v8::HandleScope scope;
 
   DbTxn* txn = ObjectWrap::Unwrap<DbTxn>(args.This());
 
   REQ_FN_ARG(0, cb);
 
-  eio_baton_t *baton = new eio_baton_t();
-  baton->txn = txn;
-  baton->cb = Persistent<Function>::New(cb);
+  EIOBaton *baton = new EIOBaton(txn);
+  baton->cb = v8::Persistent<v8::Function>::New(cb);
 
   txn->Ref();
-  eio_custom(EIO_Abort, EIO_PRI_DEFAULT, EIO_After, baton);
+  eio_custom(EIO_Abort, EIO_PRI_DEFAULT, EIO_After_ReturnStatus, baton);
   ev_ref(EV_DEFAULT_UC);
 
-  return Undefined();
+  return v8::Undefined();
 }
 
 v8::Handle<v8::Value> DbTxn::Commit(const v8::Arguments &args) {
-  HandleScope scope;
+  v8::HandleScope scope;
 
-  DbTxn* txn = ObjectWrap::Unwrap<DbTxn>(args.This());
+  DbTxn* txn = node::ObjectWrap::Unwrap<DbTxn>(args.This());
   int flags = 0;
 
   REQ_FN_ARG(args.Length() - 1, cb);
@@ -116,16 +91,15 @@ v8::Handle<v8::Value> DbTxn::Commit(const v8::Arguments &args) {
 	flags = tmp->Value();
   }
 
-  eio_baton_t *baton = new eio_baton_t();
-  baton->txn = txn;
-  baton->cb = Persistent<Function>::New(cb);
+  EIOBaton *baton = new EIOBaton(txn);
+  baton->cb = v8::Persistent<v8::Function>::New(cb);
   baton->flags = flags;
 
   txn->Ref();
-  eio_custom(EIO_Commit, EIO_PRI_DEFAULT, EIO_After, baton);
+  eio_custom(EIO_Commit, EIO_PRI_DEFAULT, EIO_After_ReturnStatus, baton);
   ev_ref(EV_DEFAULT_UC);
 
-  return Undefined();
+  return v8::Undefined();
 }
 
 v8::Handle<v8::Value> DbTxn::New(const v8::Arguments& args) {

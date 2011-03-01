@@ -19,7 +19,7 @@ stat = env.open(env_location);
 assert.equal(0, stat.code, stat.message);
 
 var db = new BDB.Db();
-stat = db.openSync(env, helper.uuid());
+stat = db.open(env, helper.uuid());
 assert.equal(0, stat.code, stat.message);
 
 

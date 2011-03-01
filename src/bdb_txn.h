@@ -1,12 +1,15 @@
-#ifndef __NODE_BDB_TXN_H__
-#define __NODE_BDB_TXN_H__
+// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+#ifndef BDB_TXN_H_
+#define BDB_TXN_H_
 
-#include "common.h"
+#include <db.h>
 
-class DbTxn: node::ObjectWrap {
+#include "bdb_object.h"
+
+class DbTxn: public DbObject {
 public:
   DbTxn();
-  ~DbTxn();
+  virtual ~DbTxn();
 
   DB_TXN *&getDB_TXN();
 
@@ -28,4 +31,4 @@ private:
   DB_TXN *_txn;
 };
 
-#endif
+#endif  // BDB_TXN_H_

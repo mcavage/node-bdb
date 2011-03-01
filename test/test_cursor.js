@@ -14,35 +14,101 @@ stat = env.open(env_location);
 assert.equal(0, stat.code, stat.message);
 
 var db = new BDB.Db();
-stat = db.openSync(env, helper.uuid());
+stat = db.open(env, helper.uuid());
 assert.equal(0, stat.code, stat.message);
 
-var load = function(prefix, callback) {
-    var key = new Buffer(prefix + helper.uuid());
-    var val = new Buffer(helper.uuid());
-    db.put(key, val, function(res) {
-	assert.equal(0, res.code, res.message);
-	callback();
+function testPut(collection, callback) {
+  var coll = collection.slice(0);
+  var txn = new BDB.DbTxn();
+  stat = env.txnBegin(txn);
+  assert.equal(0, stat.code, stat.message);
+  var cursor = new BDB.DbCursor();
+  stat = db.cursor(cursor, txn);
+  assert.equal(0, stat.code, stat.message);
+  (function insertOne() {
+    var record = coll.splice(0, 1)[0];
+    cursor.put(new Buffer(record), new Buffer(record), function(res) {
+      assert.equal(0, res.code, res.message);
+      if (coll.length == 0) {
+	txn.commit(function(res) {
+	  assert.equal(0, res.code, res.message);
+          callback();
+	});
+      } else {
+        insertOne();
+      }
     });
+  })();
 }
 
-var ITERATIONS = 100;
-var finished = 0;
-for(var i = 0; i < ITERATIONS; i++) {
-    load("test", function() {
-	if(++finished >= ITERATIONS) {
-	    var txn = new BDB.DbTxn();
-	    stat = env.txnBegin(txn);
-	    assert.equal(0, stat.code, stat.message);
-	    var cursor = new BDB.DbCursor();
-	    stat = db.cursor(cursor, txn);
-	    assert.equal(0, stat.code, stat.message);
-	    cursor.get(function(stat, key, value) {
-		console.log(require('util').inspect(stat));
-		console.log(require('util').inspect(key.toString(encoding='utf8')));
-		console.log(require('util').inspect(value.toString(encoding='utf8')));
-	    });
-	}
+function testGet(collection, callback) {
+  var coll = collection.slice(0);
+  var txn = new BDB.DbTxn();
+  stat = env.txnBegin(txn);
+  assert.equal(0, stat.code, stat.message);
+  var cursor = new BDB.DbCursor();
+  stat = db.cursor(cursor, txn);
+  assert.equal(0, stat.code, stat.message);
+  (function getOne() {
+    var record = coll.splice(0, 1)[0];
+    cursor.get(function(res, key, val) {
+      assert.equal(0, res.code, res.message);
+      assert.equal(record, key.toString(encoding='utf8'), "get key mismatch");
+      assert.equal(record, val.toString(encoding='utf8'), "get val mismatch");
+      if (coll.length == 0) {
+	txn.commit(function(res) {
+	  assert.equal(0, res.code, res.message);
+          callback();
+	});
+      } else {
+        getOne();
+      }
     });
+  })();
 }
+
+function testDel(collection, callback) {
+  var coll = collection.slice(0);
+  var txn = new BDB.DbTxn();
+  stat = env.txnBegin(txn);
+  assert.equal(0, stat.code, stat.message);
+  var cursor = new BDB.DbCursor();
+  stat = db.cursor(cursor, txn);
+  assert.equal(0, stat.code, stat.message);
+  (function delOne() {
+    var record = coll.splice(0, 1)[0];
+    cursor.get(function(res, key, val) {
+      assert.equal(0, res.code, res.message);
+      assert.equal(record, key.toString(encoding='utf8'), "get key mismatch");
+      assert.equal(record, val.toString(encoding='utf8'), "get val mismatch");
+      cursor.del(function(res) {
+	assert.equal(0, res.code, res.message);
+	if (coll.length == 0) {
+	  txn.commit(function(res) {
+	    assert.equal(0, res.code, res.message);
+            callback();
+	  });
+	} else {
+          delOne();
+	}
+      });
+    });
+  })();
+}
+
+// First create our records
+var records = [];
+for(var i = 0; i < 10; i++) {
+  records.push(helper.uuid());
+}
+
+// Now load
+testPut(records, function() {
+  records.sort();
+  testGet(records, function() {
+    testDel(records, function() {
+      console.log("test_cursor: PASSED");
+    });
+  });
+});
 

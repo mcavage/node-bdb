@@ -1,12 +1,15 @@
-#ifndef __NODE_BDB_CURSOR_H__
-#define __NODE_BDB_CURSOR_H__
+// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+#ifndef BDB_CURSOR_H_
+#define BDB_CURSOR_H_
 
-#include "common.h"
+#include <db.h>
 
-class DbCursor: node::ObjectWrap {
+#include "bdb_object.h"
+
+class DbCursor: public DbObject {
 public:
   DbCursor();
-  ~DbCursor();
+  virtual ~DbCursor();
 
   static void Initialize(v8::Handle<v8::Object> target);
 
@@ -26,11 +29,9 @@ private:
   static int EIO_Get(eio_req *req);
   static int EIO_AfterGet(eio_req *req);
   static int EIO_Put(eio_req *req);
-  static int EIO_AfterPut(eio_req *req);
   static int EIO_Del(eio_req *req);
-  static int EIO_AfterDel(eio_req *req);
 
   DBC *_cursor;
 };
 
-#endif
+#endif  // BDB_CURSOR_H_

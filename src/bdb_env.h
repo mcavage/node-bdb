@@ -1,12 +1,16 @@
-#ifndef __NODE_BDB_ENV_H__
-#define __NODE_BDB_ENV_H__
+// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+#ifndef BDB_ENV_H_
+#define BDB_ENV_H_
 
-#include "common.h"
+#include <db.h>
 
-class DbEnv: node::ObjectWrap {
-public:
+#include "bdb_object.h"
+
+
+class DbEnv: public DbObject {
+ public:
   DbEnv();
-  ~DbEnv();
+  virtual ~DbEnv();
 
   DB_ENV *&getDB_ENV();
 
@@ -37,14 +41,13 @@ public:
     DB_THREAD;
 
 
-private:
+ private:
   DbEnv(const DbEnv &);
   DbEnv &operator=(const DbEnv &);
 
   static int EIO_Checkpoint(eio_req *);
-  static int EIO_AfterCheckpoint(eio_req *);
 
   DB_ENV *_env;
 };
 
-#endif
+#endif  // BDB_ENV_H_

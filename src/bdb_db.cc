@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,9 +14,9 @@ using v8::FunctionTemplate;
 
 class EIODbBaton: public EIOBaton {
  public:
-  EIODbBaton(Db *db): EIOBaton(db), env(0), txn(0) {
-    memset(&key, 0, sizeof (DBT));
-    memset(&val, 0, sizeof (DBT));
+  explicit EIODbBaton(Db *db): EIOBaton(db), env(0), txn(0) {
+    memset(&key, 0, sizeof(DBT));
+    memset(&val, 0, sizeof(DBT));
   }
 
   virtual ~EIODbBaton() {}
@@ -52,13 +52,8 @@ int Db::EIO_Get(eio_req *req) {
   DB *&db = dynamic_cast<Db *>(baton->object)->_db;
   DB_TXN *txn = baton->txn ? baton->txn->getDB_TXN() : NULL;
   baton->val.flags = DB_DBT_MALLOC;
-  if (db != NULL) {
-    baton->status = db->get(db,
-                            txn,
-                            &(baton->key),
-                            &(baton->val),
-                            baton->flags);
-  }
+
+  baton->status = db->get(db, txn, &(baton->key), &(baton->val), baton->flags);
 
   return 0;
 }
@@ -80,9 +75,8 @@ int Db::EIO_AfterGet(eio_req *req) {
 
   baton->cb->Call(v8::Context::GetCurrent()->Global(), 2, argv);
 
-  if (try_catch.HasCaught()) {
+  if (try_catch.HasCaught())
     node::FatalException(try_catch);
-  }
 
   baton->object->Unref();
   baton->cb.Dispose();
@@ -91,6 +85,7 @@ int Db::EIO_AfterGet(eio_req *req) {
     baton->val.data = NULL;
   }
   delete baton;
+
   return 0;
 }
 
@@ -123,31 +118,18 @@ int Db::EIO_Del(eio_req *req) {
 
 // Start V8 Exposed Methods
 
-v8::Handle<v8::Value> Db::Open(const v8::Arguments& args) {
+v8::Handle<v8::Value> Db::OpenS(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-
-  int flags = DEF_OPEN_FLAGS;
-  DBTYPE type = DEF_TYPE;
-  int mode = 0;
 
   REQ_OBJ_ARG(0, envObj);
   DbEnv *env = node::ObjectWrap::Unwrap<DbEnv>(envObj);
 
   REQ_STR_ARG(1, file);
-  if (args.Length() > 2) {
-    REQ_INT_ARG(2, tmp);
-    type = static_cast<DBTYPE>(tmp->Value());
-  }
-  if (args.Length() > 3) {
-    REQ_INT_ARG(3, tmp);
-    flags = tmp->Value();
-  }
-  if (args.Length() > 4) {
-    REQ_INT_ARG(4, tmp);
-    mode = tmp->Value();
-  }
+  REQ_INT_ARG(2, type);
+  REQ_INT_ARG(3, flags);
+  REQ_INT_ARG(4, mode);
 
   int rc = 0;
   if (db->_db == NULL)
@@ -155,17 +137,13 @@ v8::Handle<v8::Value> Db::Open(const v8::Arguments& args) {
 
   if (db->_db != NULL && rc == 0) {
     rc = db->_db->open(db->_db,
-                       NULL,  // txn TODO
+                       NULL,  // TODO(mcavage): support DB open as TXN
                        *file,
-                       NULL,  // db - this is generally useless, so hide it
-                       type,
+                       NULL,  // db
+                       static_cast<DBTYPE>(type),
                        flags,
                        mode);
   }
-
-  // TODO(mcavage): REMOVE THESE
-  db->_db->set_errfile(db->_db, stderr);
-  db->_db->set_errpfx(db->_db, "node-bdb");
 
   DB_RES(rc, db_strerror(rc), msg);
   v8::Local<v8::Value> result = { msg };
@@ -176,21 +154,12 @@ v8::Handle<v8::Value> Db::Get(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  int flags = DEF_DATA_FLAGS;
   DbTxn *txn = NULL;
 
+  OPT_TXN_ARG(0, txn);
+  REQ_BUF_ARG(1, key);
+  REQ_INT_ARG(2, flags);
   REQ_FN_ARG(args.Length() - 1, cb);
-  REQ_BUF_ARG(0, key);
-
-  if (args.Length() > 2) {
-    REQ_INT_ARG(1, tmp);
-    if (tmp->Value() > 0)
-      flags = tmp->Value();
-  }
-  if (args.Length() > 3) {
-    REQ_OBJ_ARG(2, txnObj);
-    txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
-  }
 
   EIODbBaton *baton = new EIODbBaton(db);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -210,23 +179,13 @@ v8::Handle<v8::Value> Db::Put(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  int flags = DEF_DATA_FLAGS;
   DbTxn *txn = NULL;
 
+  OPT_TXN_ARG(0, txn);
+  REQ_BUF_ARG(1, key);
+  REQ_BUF_ARG(2, value);
+  REQ_INT_ARG(3, flags);
   REQ_FN_ARG(args.Length() - 1, cb);
-  REQ_BUF_ARG(0, key);
-  REQ_BUF_ARG(1, value);
-
-  if (args.Length() > 3) {
-    REQ_INT_ARG(2, tmp);
-    if (tmp->Value() > 0)
-      flags = tmp->Value();
-  }
-
-  if (args.Length() > 4) {
-    REQ_OBJ_ARG(3, txnObj);
-    txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
-  }
 
   EIODbBaton *baton = new EIODbBaton(db);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -248,21 +207,12 @@ v8::Handle<v8::Value> Db::Del(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  int flags = DEF_DATA_FLAGS;
   DbTxn *txn = NULL;
 
+  OPT_TXN_ARG(0, txn);
+  REQ_BUF_ARG(1, key);
+  REQ_INT_ARG(2, flags);
   REQ_FN_ARG(args.Length() - 1, cb);
-  REQ_BUF_ARG(0, key);
-
-  if (args.Length() > 2) {
-    REQ_INT_ARG(1, tmp);
-    if (tmp->Value() > 0)
-      flags = tmp->Value();
-  }
-  if (args.Length() > 3) {
-    REQ_OBJ_ARG(2, txnObj);
-    txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
-  }
 
   EIODbBaton *baton = new EIODbBaton(db);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -281,23 +231,13 @@ v8::Handle<v8::Value> Db::Del(const v8::Arguments& args) {
 v8::Handle<v8::Value> Db::Cursor(const v8::Arguments& args) {
   v8::HandleScope scope;
 
-  DbTxn *txn = NULL;
-  int flags = 0;
-
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
 
-  REQ_OBJ_ARG(0, cursorObj);
+  DbTxn *txn = NULL;
+  OPT_TXN_ARG(0, txn);
+  REQ_OBJ_ARG(1, cursorObj);
   DbCursor *dbCursor = node::ObjectWrap::Unwrap<DbCursor>(cursorObj);
-
-  if (args.Length() > 1) {
-    REQ_OBJ_ARG(1, txnObj);
-    txn = node::ObjectWrap::Unwrap<DbTxn>(txnObj);
-  }
-
-  if (args.Length() > 2) {
-    REQ_INT_ARG(2, tmp);
-    flags = tmp->Value();
-  }
+  REQ_INT_ARG(2, flags);
 
   DBC *&cursor = dbCursor->getDBC();
   int rc = db->_db->cursor(db->_db,
@@ -324,11 +264,11 @@ void Db::Initialize(v8::Handle<v8::Object> target) {
   v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
 
-  NODE_SET_PROTOTYPE_METHOD(t, "open", Open);
-  NODE_SET_PROTOTYPE_METHOD(t, "get", Get);
-  NODE_SET_PROTOTYPE_METHOD(t, "put", Put);
-  NODE_SET_PROTOTYPE_METHOD(t, "del", Del);
-  NODE_SET_PROTOTYPE_METHOD(t, "cursor", Cursor);
+  NODE_SET_PROTOTYPE_METHOD(t, "_openSync", OpenS);
+  NODE_SET_PROTOTYPE_METHOD(t, "_get", Get);
+  NODE_SET_PROTOTYPE_METHOD(t, "_put", Put);
+  NODE_SET_PROTOTYPE_METHOD(t, "_del", Del);
+  NODE_SET_PROTOTYPE_METHOD(t, "_cursor", Cursor);
 
   target->Set(v8::String::NewSymbol("Db"), t->GetFunction());
 }

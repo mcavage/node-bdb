@@ -1,0 +1,297 @@
+#!/bin/bash -
+#	$Id$
+#
+# Build Windows CE .vcproj files
+# Build Windows .vcproj files.
+
+. ./RELEASE
+
+create_projects()
+{
+    # project name list
+    PROJECTS=$1
+
+    # xquery script template
+    TEMPLATE=genproject.template
+
+    # temporary script, post-sed-replacement
+    TEMP_SCRIPT=genproject.script
+
+    # xml document input template
+    CONFIG_INPUT=$2
+
+    # temporary xml document, post-sed-replacement
+    CONFIG_OUTPUT=projects.xml
+
+    # location for output project files
+    PROJECT_OUTPUT_DIR=$3
+
+    # substitute some variables in the XML document template
+    sed -e "s/@DB_VERSION_MAJOR@/$DB_VERSION_MAJOR/g" \
+        -e "s/@DB_VERSION_MINOR@/$DB_VERSION_MINOR/g" \
+        < $CONFIG_INPUT > $CONFIG_OUTPUT
+
+    # for each project, substitute 2 variables in the XQuery script, then run it
+    for v in VC8
+    do
+        if [ $v = "VC7.1" ]; then
+            VERSION="7.10"
+        else
+    	    VERSION="8.00"
+        fi
+
+        echo "Building for Visual Studio version $VERSION"
+
+        for i in `cat $PROJECTS`
+        do
+            sed -e "s!@PROJECT_NAME@!$i!g" -e "s!@PROJECT_INPUT@!$CONFIG_OUTPUT!g" -e "s!@VISUAL_STUDIO_VERSION@!$VERSION!g" < $TEMPLATE > $TEMP_SCRIPT
+            TMP=$PROJECT_OUTPUT_DIR/$i.tmp.vcproj
+            if [ $v = "VC7.1" ]; then
+                TARG=$PROJECT_OUTPUT_DIR/${i}_vs71.vcproj
+            else
+                TARG=$PROJECT_OUTPUT_DIR/${i}.vcproj
+            fi
+            xqilla -o $TMP $TEMP_SCRIPT
+            rm -f $TEMP_SCRIPT
+            chmod 644 $TMP
+            cmp $TMP $TARG > /dev/null 2>&1 ||
+            (echo "Building $TARG" && rm -f $TARG &&
+            cp $TMP $TARG)
+            rm -f $TMP
+        done
+    done
+
+    # Cleanup.
+    rm -f $CONFIG_OUTPUT
+}
+
+create_projects_csharp()
+{
+    # project name list
+    PROJECTS=$1
+
+    # xquery script template
+    TEMPLATE=genproject_csharp.template
+
+    # temporary script, post-sed-replacement
+    TEMP_SCRIPT=genproject.script
+
+    # xml document input template
+    CONFIG_INPUT=$2
+
+    # temporary xml document, post-sed-replacement
+    CONFIG_OUTPUT=projects.xml
+
+    # substitute some variables in the XML document template
+    sed -e "s/@DB_VERSION_MAJOR@/$DB_VERSION_MAJOR/g" \
+        -e "s/@DB_VERSION_MINOR@/$DB_VERSION_MINOR/g" \
+        < $CONFIG_INPUT > $CONFIG_OUTPUT
+
+    # for each project, substitute 2 variables in the XQuery script, then run it
+    for i in `cat $PROJECTS`
+    do
+        # Split project path into dir + basename
+        PROJECT_OUTPUT_DIR=`dirname $i`
+        i=`basename $i`
+
+        sed -e "s!@PROJECT_NAME@!$i!g" -e "s!@PROJECT_INPUT@!$CONFIG_OUTPUT!g" -e "s!@VISUAL_STUDIO_VERSION@!$VERSION!g" < $TEMPLATE > $TEMP_SCRIPT
+        TMP=$PROJECT_OUTPUT_DIR/$i.tmp.csproj
+        TARG=$PROJECT_OUTPUT_DIR/${i}.csproj
+        xqilla -o $TMP $TEMP_SCRIPT
+        rm -f $TEMP_SCRIPT
+        chmod 644 $TMP
+        cmp $TMP $TARG > /dev/null 2>&1 ||
+        (echo "Building $TARG" && rm -f $TARG &&
+        cp $TMP $TARG)
+        rm -f $TMP
+    done
+
+    # Cleanup.
+    rm -f $CONFIG_OUTPUT
+}
+
+cd win_projects
+
+# Create/Update Windows project files
+echo "Building Visual Studio project files for Windows -- "
+echo "   output only for modified projects (this can take a while)"
+create_projects db.projects projects.template.xml ../../build_windows
+
+# Create/Update Windows CE project files
+echo "Building Visual Studio project files for Windows CE -- "
+echo "   output only for modified projects (this can take a while)"
+create_projects db_wince.projects projects_wince.template.xml ../../build_wince
+
+# Create/Update C Sharp project files
+echo "Building C Sharp project files -- "
+echo "   output only for modified projects (this can take a while)"
+create_projects_csharp db_csharp.projects projects_csharp.template.xml
+
+cd ..
+
+upgrade_solution(){
+	fail=0
+	cp -f $1.sln $1.sln.pre
+	# Delete all the vs2010 project files to avoid a popup window
+	rm -fr *.vcxproj 2>/dev/null
+	echo "Upgrading $1.sln ....."
+	echo "call \"${VS10TOOLSDIR}\"vsvars32.bat" > $tmp_bat
+	echo "devenv $1.sln /upgrade" >> $tmp_bat
+	cmd /c $tmp_bat >/dev/null 2>/dev/null || fail=1
+	if test "$fail" = "1"; then
+		echo "	Fail to upgrade $1.sln !"
+		fail=0
+	fi
+	# Save those vs2010 projects
+	cp -f *.vcxproj $vcxproj_tmp_dir 2>/dev/null
+	mv -f $1.sln $1_vs2010.sln
+	mv -f $1.sln.pre $1.sln
+	return 0
+}
+
+convert_vsfiles(){
+
+	VS10TOOLSDIR=`cygpath -m "$VS100COMNTOOLS"`
+	vcxproj_tmp_dir="../vs2010_projects"
+	tmp_bat="_vs2010_tmp1.bat"
+	fail=0
+
+	mkdir -p $vcxproj_tmp_dir
+
+	cs_project_files="../lang/csharp/src/db_dotnet.csproj \
+	    ../examples/csharp/excs_access/excs_access.csproj \
+	    ../examples/csharp/excs_btrec/excs_btrec.csproj \
+	    ../examples/csharp/excs_env/excs_env.csproj \
+	    ../examples/csharp/excs_sequence/excs_sequence.csproj \
+	    ../examples/csharp/excs_repquote/excs_repquote.csproj \
+	    ../test/csharp/DotNetTest.csproj \
+	    ../examples/csharp/excs_txn/excs_txn.csproj"
+
+	# Save the csharp project files
+	for f in $cs_project_files;do
+		cp -f $f $f.bak
+	done
+
+	# Upgrade the BDB_dotNet_examples.sln
+	upgrade_solution BDB_dotNet_examples
+
+	# Upgrade the BDB_dotNet.sln
+	upgrade_solution BDB_dotNet
+
+	# Restore the csharp project files
+	for f in $cs_project_files;do
+		mv -f $f.bak $f
+	done
+
+	# Upgrade Berkeley_DB_examples.sln
+	upgrade_solution Berkeley_DB_examples
+
+	# Upgrade the Berkeley_DB.sln
+	upgrade_solution Berkeley_DB
+
+	# Upgrade all those unchanged projects
+	# Copy all the vs2010 projects back
+	cp -f $vcxproj_tmp_dir/*.vcxproj .
+	list="`ls *.vcproj`"
+	for proj in $list;do
+		# Skip upgrading excxx_wce_sql.vcproj
+		test "$proj" = "excxx_wce_sql.vcproj" && continue
+		name="`echo $proj| sed 's/\.vcproj//g'`"
+		if test -f "$name.vcxproj"; then
+			# The project has been converted
+			continue
+		else
+			echo "Upgrading $proj ....."
+			echo "call \"${VS10TOOLSDIR}\"vsvars32.bat" > $tmp_bat
+			echo "devenv $proj /upgrade" >> $tmp_bat
+			cmd /c $tmp_bat >/dev/null 2>/dev/null || fail=1
+			if test "$fail" = "1"; then
+				echo "	Fail to upgrade $proj !"
+				fail=0
+			fi
+
+		fi
+	done
+
+	# Delete those temporary/backup/upgardelog directories/files.	
+	for f in $cs_project_files;do
+		rm -f $f.old
+		rm -f $f.user
+	done	
+	rm -f "$tmp_bat"
+	rm -fr "$vcxproj_tmp_dir"
+	rm -fr Backup*
+	rm -f *.user
+	rm -f UpgradeLog*.XML
+	rm -f *.suo
+	rm -f *.sdf
+	rm -f *.ncb
+	rm -f *.old
+	rm -fr "_UpgradeReport_Files"
+	rm -fr Win32
+	rm -fr x64
+	rm -fr AnyCPU
+}
+
+process_vcxproj(){
+	names=""
+	win32de_name=""
+	x64de_name=""
+	win32rel_name=""
+	x64rel_name=""
+	ext=""
+	list="`ls *.vcxproj`"
+	
+	for proj in $list;do
+		echo "Processing project $proj ...."
+		names="`sed -n '/<OutputFile>/p' $proj | sed 's#</*OutputFile>##g' | sed 's#\$(.*)##g' | sort | uniq`"
+		names_len="`sed -n '/<OutputFile>/p' $proj | sed 's#</*OutputFile>##g' | sed 's#\$(.*)##g' | sort | uniq | wc -l`"
+		name="`echo $names|awk '{print $1}'`"
+		test "$names_len" = "1" || name="`echo $name| sed 's#d\.#.#g'`"
+		pre_name="`echo $name|  sed 's/\(.*\)\.[^.]*/\1/g'`"
+		ext_name="`echo $name|  sed 's/.*\(\.[^.]*\)/\1/g'`"
+		win32rel_name="$pre_name"
+		x64rel_name="$pre_name"
+		ext="$ext_name"
+		if test "$names_len" = "1"; then
+			win32de_name="$pre_name"
+			x64de_name="$pre_name"
+		else
+			win32de_name="${pre_name}d"
+			x64de_name="${pre_name}d"
+		fi
+		cat /dev/null >1.tmp
+		echo "    <TargetName Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|x64'\">$x64de_name</TargetName>" >>1.tmp
+		echo "    <TargetExt Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|x64'\">$ext</TargetExt>" >>1.tmp
+		echo "    <TargetName Condition=\"'\$(Configuration)|\$(Platform)'=='Release|x64'\">$x64rel_name</TargetName>" >>1.tmp
+		echo "    <TargetExt Condition=\"'\$(Configuration)|\$(Platform)'=='Release|x64'\">$ext</TargetExt>" >>1.tmp
+		echo "    <TargetName Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">$win32de_name</TargetName>" >>1.tmp
+		echo "    <TargetExt Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">$ext</TargetExt>" >>1.tmp
+		echo "    <TargetName Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">$win32rel_name</TargetName>" >>1.tmp
+		echo "    <TargetExt Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">$ext</TargetExt>" >>1.tmp
+		echo "  </PropertyGroup>" >>1.tmp
+		sed 's#.*<OutputFile>.*#	<OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>#g' $proj | \
+		sed '/UserMacros/ {
+			:la
+			n
+			/<\/PropertyGroup>/ {
+				s/.*//g
+				r 1.tmp
+				b
+			}
+			b la	
+	
+		}' | sed '/^$/d' >2.tmp
+		# mv $proj $proj.bak
+		mv -f 2.tmp $proj
+		rm -f 1.tmp
+	done
+}
+
+# Build vs2010 solution files and project files.
+if test "$1" = "-vs2010"; then
+	cd ../build_windows
+	convert_vsfiles
+	process_vcxproj
+	cd ../dist
+fi

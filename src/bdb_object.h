@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #ifndef BDB_OBJECT_H_
 #define BDB_OBJECT_H_
 

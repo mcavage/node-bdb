@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #ifndef BDB_TXN_H_
 #define BDB_TXN_H_
 
@@ -7,7 +7,7 @@
 #include "bdb_object.h"
 
 class DbTxn: public DbObject {
-public:
+ public:
   DbTxn();
   virtual ~DbTxn();
 
@@ -20,13 +20,13 @@ public:
   static v8::Handle<v8::Value> Abort(const v8::Arguments &);
   static v8::Handle<v8::Value> Commit(const v8::Arguments &);
 
-private:
+ private:
   DbTxn(const DbTxn &);
   DbTxn &operator=(const DbTxn &);
 
-  static int EIO_Abort(eio_req *);
-  static int EIO_Commit(eio_req *);
-  static int EIO_After(eio_req *);
+  static int EIO_Abort(eio_req *req);
+  static int EIO_Commit(eio_req *req);
+  static int EIO_After(eio_req *req);
 
   DB_TXN *_txn;
 };

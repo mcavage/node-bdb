@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,9 +12,9 @@ using v8::FunctionTemplate;
 
 class EIOCursorBaton: public EIOBaton {
  public:
-  EIOCursorBaton(DbCursor *cursor): EIOBaton(cursor) {
-    memset(&key, 0, sizeof (DBT));
-    memset(&val, 0, sizeof (DBT));
+  explicit EIOCursorBaton(DbCursor *cursor): EIOBaton(cursor) {
+    memset(&key, 0, sizeof(DBT));
+    memset(&val, 0, sizeof(DBT));
   }
 
   virtual ~EIOCursorBaton() {}
@@ -30,7 +30,7 @@ class EIOCursorBaton: public EIOBaton {
 DbCursor::DbCursor(): DbObject(), _cursor(0) {}
 
 DbCursor::~DbCursor() {
-  if(_cursor != NULL) {
+  if (_cursor != NULL) {
     _cursor->close(_cursor);
     _cursor = NULL;
   }
@@ -85,10 +85,14 @@ int DbCursor::EIO_AfterGet(eio_req *req) {
   baton->object->Unref();
   baton->cb.Dispose();
 
-  if (baton->key.data != NULL)
+  if (baton->key.data != NULL) {
     free(baton->key.data);
-  if (baton->val.data != NULL)
+    baton->key.data = NULL;
+  }
+  if (baton->val.data != NULL) {
     free(baton->val.data);
+    baton->val.data = NULL;
+  }
 
   delete baton;
   return 0;
@@ -130,14 +134,9 @@ v8::Handle<v8::Value> DbCursor::Get(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   DbCursor *cursor = node::ObjectWrap::Unwrap<DbCursor>(args.This());
-  int flags = DEF_DATA_FLAGS;
 
+  REQ_INT_ARG(0, flags);
   REQ_FN_ARG(args.Length() - 1, cb);
-
-  if(args.Length() > 1) {
-	REQ_INT_ARG(0, tmp);
-	flags = tmp->Value();
-  }
 
   EIOCursorBaton *baton = new EIOCursorBaton(cursor);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -154,16 +153,11 @@ v8::Handle<v8::Value> DbCursor::Put(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   DbCursor *cursor = ObjectWrap::Unwrap<DbCursor>(args.This());
-  int flags = DB_KEYFIRST;
-
-  REQ_FN_ARG(args.Length() - 1, cb);
 
   REQ_BUF_ARG(0, key);
   REQ_BUF_ARG(1, value);
-  if(args.Length() > 3) {
-	REQ_INT_ARG(2, tmp);
-	flags = tmp->Value();
-  }
+  REQ_INT_ARG(2, flags);
+  REQ_FN_ARG(args.Length() - 1, cb);
 
   EIOCursorBaton *baton = new EIOCursorBaton(cursor);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -184,14 +178,9 @@ v8::Handle<v8::Value> DbCursor::Del(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   DbCursor *cursor = ObjectWrap::Unwrap<DbCursor>(args.This());
-  int flags = 0;
 
+  REQ_INT_ARG(0, flags);
   REQ_FN_ARG(args.Length() - 1, cb);
-
-  if(args.Length() > 1) {
-	REQ_INT_ARG(0, tmp);
-	flags = tmp->Value();
-  }
 
   EIOCursorBaton *baton = new EIOCursorBaton(cursor);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -218,9 +207,9 @@ void DbCursor::Initialize(v8::Handle<v8::Object> target) {
   v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
 
-  NODE_SET_PROTOTYPE_METHOD(t, "get", Get);
-  NODE_SET_PROTOTYPE_METHOD(t, "put", Put);
-  NODE_SET_PROTOTYPE_METHOD(t, "del", Del);
+  NODE_SET_PROTOTYPE_METHOD(t, "_get", Get);
+  NODE_SET_PROTOTYPE_METHOD(t, "_put", Put);
+  NODE_SET_PROTOTYPE_METHOD(t, "_del", Del);
 
   target->Set(v8::String::NewSymbol("DbCursor"), t->GetFunction());
 }

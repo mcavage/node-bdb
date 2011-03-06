@@ -1,35 +1,37 @@
-{ 
-  "name" : "bdb", 
-  "version" : "1.0.0",
+{
+  "name" : "bdb",
+  "version" : "0.0.1",
   "main" : "bdb_bindings",
-  "description" : "Berkeley DB bindings for node",
-  "keywords": [
-    "bdb",
-	"db",
-	"berkeleydb",
-	"storage"
-   ],
-   "maintainers": [
-     {
-       "name": "Mark Cavage",
-       "email": "mcavage@gmail.com",
-       "web": "http://www.joyent.com",
-       "twitter": "mcavage"
-     } 
-   ],
-   "licenses": [
-     {
-       "type": "MIT"
-     } 
-   ],
-   "directories": {
-     "examples": "examples",
-     "src": "src"
-   },
-   "engines": {
-     "node": ">=0.4.0"
-   },
-   "scripts": {
-     "install": "make configure build"
-   }
+  "description" : "Berkeley DB(5.X) bindings for node",
+  "repository" : {
+    "type" : "git",
+    "url" : "http://github.com/mcavage/node-bdb.git"
+  },
+  "author": "Mark Cavage <mcavage@gmail.com>",
+  "keywords": ["bdb", "berkeleydb", "db", "database", "storage"],
+  "devDependencies": {
+    "jslint": ">=0.0.3"
+  },
+  "bin": {
+    "db_archive": "./deps/db-5.1.25/build_unix/db_archive",
+    "db_checkpoint": "./deps/db-5.1.25/build_unix/db_checkpoint",
+    "db_deadlock": "./deps/db-5.1.25/build_unix/db_deadlock",
+    "db_dump": "./deps/db-5.1.25/build_unix/db_dump",
+    "db_hotbackup": "./deps/db-5.1.25/build_unix/db_hotbackup",
+    "db_load": "./deps/db-5.1.25/build_unix/db_load",
+    "db_log_verify": "./deps/db-5.1.25/build_unix/db_log_verify",
+    "db_printlog": "./deps/db-5.1.25/build_unix/db_printlog",
+    "db_recover": "./deps/db-5.1.25/build_unix/db_recover",
+    "db_stat": "./deps/db-5.1.25/build_unix/db_stat",
+    "db_upgrade": "./deps/db-5.1.25/build_unix/db_upgrade",
+    "db_verify": "./deps/db-5.1.25/build_unix/db_verify"
+  },
+  "files": ["deps","lib","src","wscript","package.json", "LICENSE"],
+  "main": "./lib/bdb.js",
+  "engines": {
+    "node": ">=0.4.0"
+  },
+  "scripts": {
+    "preinstall": "node-waf configure build"
+  }
 }

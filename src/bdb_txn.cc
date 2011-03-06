@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #include <string>
 
 #include "bdb_common.h"
@@ -67,7 +67,7 @@ v8::Handle<v8::Value> DbTxn::Abort(const v8::Arguments &args) {
 
   DbTxn* txn = ObjectWrap::Unwrap<DbTxn>(args.This());
 
-  REQ_FN_ARG(0, cb);
+  REQ_FN_ARG(args.Length() - 1, cb);
 
   EIOBaton *baton = new EIOBaton(txn);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -83,13 +83,8 @@ v8::Handle<v8::Value> DbTxn::Commit(const v8::Arguments &args) {
   v8::HandleScope scope;
 
   DbTxn* txn = node::ObjectWrap::Unwrap<DbTxn>(args.This());
-  int flags = 0;
-
+  REQ_INT_ARG(0, flags);
   REQ_FN_ARG(args.Length() - 1, cb);
-  if(args.Length() > 1) {
-	REQ_INT_ARG(0, tmp);
-	flags = tmp->Value();
-  }
 
   EIOBaton *baton = new EIOBaton(txn);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -119,7 +114,7 @@ void DbTxn::Initialize(v8::Handle<v8::Object> target) {
   txn_id_sym = NODE_PSYMBOL("id");
 
   NODE_SET_PROTOTYPE_METHOD(t, "abort", Abort);
-  NODE_SET_PROTOTYPE_METHOD(t, "commit", Commit);
+  NODE_SET_PROTOTYPE_METHOD(t, "_commit", Commit);
   NODE_SET_PROTOTYPE_METHOD(t, "id", Id);
 
   target->Set(v8::String::NewSymbol("DbTxn"), t->GetFunction());

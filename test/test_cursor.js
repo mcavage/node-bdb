@@ -1,35 +1,37 @@
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 var assert = require('assert');
 var Buffer = require('buffer').Buffer;
 var exec  = require('child_process').exec;
 var fs = require('fs');
-var BDB = require('bdb');
+var bdb = require('bdb');
 var helper = require('./helper');
 
 // setup
 var env_location = "/tmp/" + helper.uuid();
+var env = new bdb.DbEnv();
+var db = new bdb.Db();
+var stat = 0;
+
 fs.mkdirSync(env_location, 0750);
-
-var env = new BDB.DbEnv();
-var stat = env.open(env_location);
+stat = env.openSync({home:env_location});
 assert.equal(0, stat.code, stat.message);
-
-var db = new BDB.Db();
-stat = db.open(env, helper.uuid());
+stat = db.openSync({env: env, file: helper.uuid()});
 assert.equal(0, stat.code, stat.message);
 
 function testPut(collection, callback) {
   var coll = collection.slice(0);
-  var txn = new BDB.DbTxn();
-  stat = env.txnBegin(txn);
+  var txn = new bdb.DbTxn();
+  stat = env.txnBegin({txn: txn});
   assert.equal(0, stat.code, stat.message);
-  var cursor = new BDB.DbCursor();
-  stat = db.cursor(cursor, txn);
+  var cursor = new bdb.DbCursor();
+  stat = db.cursor({cursor: cursor, txn: txn});
   assert.equal(0, stat.code, stat.message);
   (function insertOne() {
     var record = coll.splice(0, 1)[0];
-    cursor.put(new Buffer(record), new Buffer(record), function(res) {
+    cursor.put({key: new Buffer(record),
+		val: new Buffer(record)}, function(res) {
       assert.equal(0, res.code, res.message);
-      if (coll.length == 0) {
+      if (coll.length === 0) {
 	txn.commit(function(res) {
 	  assert.equal(0, res.code, res.message);
           callback();
@@ -43,11 +45,11 @@ function testPut(collection, callback) {
 
 function testGet(collection, callback) {
   var coll = collection.slice(0);
-  var txn = new BDB.DbTxn();
-  stat = env.txnBegin(txn);
+  var txn = new bdb.DbTxn();
+  stat = env.txnBegin({txn: txn});
   assert.equal(0, stat.code, stat.message);
-  var cursor = new BDB.DbCursor();
-  stat = db.cursor(cursor, txn);
+  var cursor = new bdb.DbCursor();
+  stat = db.cursor({cursor: cursor, txn: txn});
   assert.equal(0, stat.code, stat.message);
   (function getOne() {
     var record = coll.splice(0, 1)[0];
@@ -55,7 +57,7 @@ function testGet(collection, callback) {
       assert.equal(0, res.code, res.message);
       assert.equal(record, key.toString(encoding='utf8'), "get key mismatch");
       assert.equal(record, val.toString(encoding='utf8'), "get val mismatch");
-      if (coll.length == 0) {
+      if (coll.length === 0) {
 	txn.commit(function(res) {
 	  assert.equal(0, res.code, res.message);
           callback();
@@ -69,11 +71,11 @@ function testGet(collection, callback) {
 
 function testDel(collection, callback) {
   var coll = collection.slice(0);
-  var txn = new BDB.DbTxn();
-  stat = env.txnBegin(txn);
+  var txn = new bdb.DbTxn();
+  stat = env.txnBegin({txn: txn});
   assert.equal(0, stat.code, stat.message);
-  var cursor = new BDB.DbCursor();
-  stat = db.cursor(cursor, txn);
+  var cursor = new bdb.DbCursor();
+  stat = db.cursor({cursor: cursor, txn: txn});
   assert.equal(0, stat.code, stat.message);
   (function delOne() {
     var record = coll.splice(0, 1)[0];
@@ -83,7 +85,7 @@ function testDel(collection, callback) {
       assert.equal(record, val.toString(encoding='utf8'), "get val mismatch");
       cursor.del(function(res) {
 	assert.equal(0, res.code, res.message);
-	if (coll.length == 0) {
+	if (coll.length === 0) {
 	  txn.commit(function(res) {
 	    assert.equal(0, res.code, res.message);
             callback();
@@ -112,4 +114,3 @@ testPut(records, function() {
     });
   });
 });
-

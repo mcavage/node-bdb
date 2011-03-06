@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #ifndef BDB_COMMON_H_
 #define BDB_COMMON_H_
 
@@ -32,7 +32,8 @@ extern v8::Persistent<v8::String> err_message_sym;
   REQ_ARGS();                                                    \
   if (args.Length() <= (I) || !args[I]->IsNumber())              \
     RET_EXC("argument " #I " must be an integer");               \
-  v8::Local<v8::Integer> VAR(args[I]->ToInteger());
+  v8::Local<v8::Integer> _ ## VAR(args[I]->ToInteger());         \
+  int VAR = _ ## VAR->Value();
 
 #define REQ_STR_ARG(I, VAR)                             \
   REQ_ARGS();                                           \
@@ -45,6 +46,20 @@ extern v8::Persistent<v8::String> err_message_sym;
   if (args.Length() <= (I) || !args[I]->IsObject())     \
     RET_EXC("argument " #I " must be a object");        \
   v8::Local<v8::Object> VAR(args[I]->ToObject());
+
+#define OPT_TXN_ARG(I, TXN)                             \
+  REQ_ARGS();                                           \
+  v8::Local<v8::Object> _txnObj;                        \
+  if (args.Length() <= (I))                             \
+    RET_EXC("Not enough arguments");                    \
+  if (args[I]->IsNull() || args[I]->IsUndefined()) {    \
+    TXN = NULL;                                         \
+  } else {                                              \
+    if (!args[I]->IsObject())                           \
+      RET_EXC("argument " #I " must be a object");      \
+    _txnObj = v8::Local<v8::Object>::Cast(args[I]);     \
+    TXN = node::ObjectWrap::Unwrap<DbTxn>(_txnObj);     \
+  }
 
 #define REQ_BUF_ARG(I, VAR)                                 \
   REQ_ARGS();                                               \

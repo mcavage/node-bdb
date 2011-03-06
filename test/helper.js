@@ -5,5 +5,5 @@ module.exports = {
 	    return v.toString(16);
 	}).toUpperCase();
     }
-}
+};
 

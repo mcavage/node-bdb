@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #ifndef BDB_CURSOR_H_
 #define BDB_CURSOR_H_
 
@@ -7,7 +7,7 @@
 #include "bdb_object.h"
 
 class DbCursor: public DbObject {
-public:
+ public:
   DbCursor();
   virtual ~DbCursor();
 
@@ -22,7 +22,7 @@ public:
 
   static const int DEF_DATA_FLAGS = DB_NEXT;
 
-private:
+ private:
   DbCursor(const DbCursor &rhs);
   DbCursor &operator=(const DbCursor &rhs);
 

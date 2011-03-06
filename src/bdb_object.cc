@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #include "bdb_common.h"
 #include "bdb_object.h"
 
@@ -29,7 +29,6 @@ DbObject::~DbObject() {}
 
 // Start EIOBaton
 
-EIOBaton::EIOBaton(DbObject *obj):
-    object(obj), flags(0), status(0) {}
+EIOBaton::EIOBaton(DbObject *obj): object(obj), flags(0), status(0) {}
 
 EIOBaton::~EIOBaton() {}

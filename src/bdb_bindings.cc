@@ -1,4 +1,4 @@
-// Copyright 2001 Mark Cavage <mark@bluesnoop.com> Sleepycat License
+// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #include <errno.h>
 #include <node.h>
 #include <v8.h>
@@ -52,6 +52,7 @@ extern "C" {
     NODE_DEFINE_CONSTANT(target, DB_INIT_REP);
     NODE_DEFINE_CONSTANT(target, DB_INIT_TXN);
     NODE_DEFINE_CONSTANT(target, DB_JOIN_ITEM);
+    NODE_DEFINE_CONSTANT(target, DB_KEYFIRST);
     NODE_DEFINE_CONSTANT(target, DB_KEYLAST);
     NODE_DEFINE_CONSTANT(target, DB_LAST);
     NODE_DEFINE_CONSTANT(target, DB_LOCKDOWN);

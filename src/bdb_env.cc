@@ -98,6 +98,19 @@ v8::Handle<v8::Value> DbEnv::New(const v8::Arguments& args) {
   return args.This();
 }
 
+v8::Handle<v8::Value> DbEnv::CloseS(const v8::Arguments &args) {
+  v8::HandleScope scope;
+
+  DbEnv* env = node::ObjectWrap::Unwrap<DbEnv>(args.This());
+
+  REQ_INT_ARG(0, flags);
+
+  int rc = env->_env->close(env->_env, flags);
+
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
 v8::Handle<v8::Value> DbEnv::OpenS(const v8::Arguments &args) {
   v8::HandleScope scope;
 
@@ -285,6 +298,7 @@ void DbEnv::Initialize(v8::Handle<v8::Object> target) {
   v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
 
+  NODE_SET_PROTOTYPE_METHOD(t, "_closeSync", CloseS);
   NODE_SET_PROTOTYPE_METHOD(t, "_openSync", OpenS);
   NODE_SET_PROTOTYPE_METHOD(t, "setLockDetect", SetLockDetect);
   NODE_SET_PROTOTYPE_METHOD(t, "setLockTimeout", SetLockTimeout);

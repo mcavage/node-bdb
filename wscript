@@ -94,6 +94,12 @@ def lint(ctx):
     subprocess.check_call(['./tools/cpplint.py',
                            '--filter=-build/include,-build/header_guard,-runtime/rtti',
                            os.path.join(dirname, f)])
+
+  dirname = cwd + '/lib'
+  for f in os.listdir(dirname):
+    print 'jslint: ' + f
+    subprocess.call(['jslint', os.path.join(dirname, f)])
+
   dirname = cwd + '/test'
   for f in os.listdir(dirname):
     print 'jslint: ' + f
@@ -131,9 +137,4 @@ def distclean(ctx):
   os.popen('rm -rf .lock-wscript build')
   os.popen('rm -rf ' + bdb_bld_dir + '/.* 2>&1 > /dev/null')
   os.popen('rm -rf ' + bdb_bld_dir + '/*')
-
-def shutdown():
-  t = 'bdb_bindings.node';
-  if exists('build/default/' + t) and not exists(t):
-    symlink('build/default/' + t, t)
 

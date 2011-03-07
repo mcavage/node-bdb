@@ -7,7 +7,7 @@ var bdb = require('bdb');
 var helper = require('./helper');
 
 // setup
-var ITERATIONS = 100;
+var ITERATIONS = 50;
 
 var env = new bdb.DbEnv();
 var db = new bdb.Db();
@@ -40,31 +40,16 @@ var run = function(callback) {
     callback();
   });
 };
-/*
-    db.get({key: key, txn: txn}, function(res, data) {
-      assert.equal(0, res.code, res.message);
-      assert.ok(data, "no data from get");
-      assert.equal(val, data.toString(encoding='utf8'), 'Data mismatch');
-      db.del({key: key, txn: txn}, function(res) {
-	assert.equal(0, res.code, res.message);
-	db.get({key: key, txn: txn}, function(res, data) {
-	  assert.equal(bdb.FLAGS.DB_NOTFOUND, res.code, res.message);
-	  txn.commit(function(res) {
-	    assert.equal(0, res.code, res.message);
-	    callback();
-	  });
-	});
-      });
-    });
-  });
-};
-*/
 
 // Make sure that multiple threads are kicking in for put/get/del
 var finished = 0;
 for(var i = 0; i < ITERATIONS; i++) {
   run(function() {
     if(++finished >= ITERATIONS) {
+      stat = db.closeSync();
+      assert.equal(0, stat.code, stat.message);
+      stat = env.closeSync();
+      assert.equal(0, stat.code, stat.message);
       console.log('test_concurrent: PASSED');
       exec("rm -fr " + env_location, function(err, stdout, stderr) {});
     }

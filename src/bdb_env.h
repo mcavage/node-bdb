@@ -16,6 +16,7 @@ class DbEnv: public DbObject {
 
   static void Initialize(v8::Handle<v8::Object> target);
 
+  static v8::Handle<v8::Value> CloseS(const v8::Arguments &);
   static v8::Handle<v8::Value> New(const v8::Arguments &);
   static v8::Handle<v8::Value> OpenS(const v8::Arguments &);
   static v8::Handle<v8::Value> SetLockDetect(const v8::Arguments &);

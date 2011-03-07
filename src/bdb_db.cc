@@ -153,6 +153,18 @@ v8::Handle<v8::Value> Db::OpenS(const v8::Arguments& args) {
   return msg;
 }
 
+v8::Handle<v8::Value> Db::CloseS(const v8::Arguments& args) {
+  v8::HandleScope scope;
+
+  Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
+
+  REQ_INT_ARG(0, flags);
+
+  int rc = db->_db->close(db->_db, flags);
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
 v8::Handle<v8::Value> Db::Get(const v8::Arguments& args) {
   v8::HandleScope scope;
 
@@ -349,6 +361,7 @@ void Db::Initialize(v8::Handle<v8::Object> target) {
 
   val_sym = NODE_PSYMBOL("value");
 
+  NODE_SET_PROTOTYPE_METHOD(t, "_closeSync", CloseS);
   NODE_SET_PROTOTYPE_METHOD(t, "_openSync", OpenS);
   NODE_SET_PROTOTYPE_METHOD(t, "_get", Get);
   NODE_SET_PROTOTYPE_METHOD(t, "_getSync", GetS);

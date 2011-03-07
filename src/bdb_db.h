@@ -11,6 +11,8 @@ class Db: public DbObject {
 
   static void Initialize(v8::Handle<v8::Object> target);
 
+  static v8::Handle<v8::Value> AssociateS(const v8::Arguments &);
+  static v8::Handle<v8::Value> CloseS(const v8::Arguments &);
   static v8::Handle<v8::Value> Cursor(const v8::Arguments &);
   static v8::Handle<v8::Value> Del(const v8::Arguments &);
   static v8::Handle<v8::Value> DelS(const v8::Arguments &);

@@ -28,8 +28,7 @@ v8::Handle<v8::Value> DbTxn::Id(const v8::Arguments &args) {
 
   DB_RES(0, db_strerror(0), msg);
   msg->Set(txn_id_sym, v8::Integer::New(id));
-  v8::Local<v8::Value> result = { msg };
-  return result;
+  return msg;
 }
 
 v8::Handle<v8::Value> DbTxn::AbortS(const v8::Arguments &args) {
@@ -39,8 +38,7 @@ v8::Handle<v8::Value> DbTxn::AbortS(const v8::Arguments &args) {
 
   int rc = txn->_txn->abort(txn->_txn);
   DB_RES(rc, db_strerror(rc), msg);
-  v8::Local<v8::Value> result = { msg };
-  return result;
+  return msg;
 }
 
 v8::Handle<v8::Value> DbTxn::CommitS(const v8::Arguments &args) {
@@ -51,8 +49,7 @@ v8::Handle<v8::Value> DbTxn::CommitS(const v8::Arguments &args) {
 
   int rc = txn->_txn->commit(txn->_txn, flags);
   DB_RES(rc, db_strerror(rc), msg);
-  v8::Local<v8::Value> result = { msg };
-  return result;
+  return msg;
 }
 
 v8::Handle<v8::Value> DbTxn::New(const v8::Arguments& args) {

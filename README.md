@@ -1,6 +1,6 @@
 This library provides node bindings for the Berkely Database (BDB).
 
-## What's BDB
+## What's BDB?
 
 Here's a 100% plagerized answer from the BDB docs:
 
@@ -10,35 +10,6 @@ high-throughput applications requiring in-process, bullet-proof management of
 mission-critical data. BDB can gracefully scale from managing a few bytes to
 terabytes of data. For the most part, BDB is limited only by your system's
 available physical resources.
-
-You use BDB through a series of programming APIs which give you the ability to
-read and write your data, manage your database(s), and perform other more
-advanced activities such as managing transactions.
-
-Because BDB is an embedded database engine, it is extremely fast. You compile
-and link it into your application in the same way as you would any third-party
-library. This means that BDB runs in the same process space as does your
-application, allowing you to avoid the high cost of interprocess communications
-incurred by stand-alone database servers.
-
-To further improve performance, BDB offers an in-memory cache designed to
-provide rapid access to your most frequently used data. Once configured, cache
-usage is transparent. It requires very little attention on the part of the
-application developer.
-
-Beyond raw speed, BDB is also extremely configurable. It provides several
-different ways of organizing your data in its databases. Known as access
-methods, each such data organization mechanism provides different
-characteristics that are appropriate for different data management profiles.
-(Note that this manual focuses almost entirely on the BTree access method as
-this is the access method used by the vast majority of BDB applications).
-
-To further improve its configurability, BDB offers many different subsystems,
-each of which can be used to extend BDB's capabilities. For example, many
-applications require write-protection of their data so as to ensure that data
-is never left in an inconsistent state for any reason (such as software bugs
-or hardware failures). For those applications, a transaction subsystem can be
-enabled and used to transactional-protect database writes.
 
 ## How do I install it?
 

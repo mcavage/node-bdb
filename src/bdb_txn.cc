@@ -18,36 +18,6 @@ DB_TXN *&DbTxn::getDB_TXN() {
   return _txn;
 }
 
-// Start EIO Methods
-
-int DbTxn::EIO_Commit(eio_req *req) {
-  EIOBaton *baton = static_cast<EIOBaton *>(req->data);
-
-  if (baton->object == NULL ||
-      dynamic_cast<DbTxn *>(baton->object)->_txn == NULL) {
-    return 0;
-  }
-
-  DB_TXN *&txn = dynamic_cast<DbTxn *>(baton->object)->_txn;
-  baton->status = txn->commit(txn, baton->flags);
-
-  return 0;
-}
-
-int DbTxn::EIO_Abort(eio_req *req) {
-  EIOBaton *baton = static_cast<EIOBaton *>(req->data);
-
-  if (baton->object == NULL ||
-      dynamic_cast<DbTxn *>(baton->object)->_txn == NULL) {
-    return 0;
-  }
-
-  DB_TXN *&txn = dynamic_cast<DbTxn *>(baton->object)->_txn;
-  baton->status = txn->abort(txn);
-
-  return 0;
-}
-
 // Start V8 Exposed Methods
 
 v8::Handle<v8::Value> DbTxn::Id(const v8::Arguments &args) {
@@ -62,39 +32,27 @@ v8::Handle<v8::Value> DbTxn::Id(const v8::Arguments &args) {
   return result;
 }
 
-v8::Handle<v8::Value> DbTxn::Abort(const v8::Arguments &args) {
+v8::Handle<v8::Value> DbTxn::AbortS(const v8::Arguments &args) {
   v8::HandleScope scope;
 
-  DbTxn* txn = ObjectWrap::Unwrap<DbTxn>(args.This());
+  DbTxn* txn = node::ObjectWrap::Unwrap<DbTxn>(args.This());
 
-  REQ_FN_ARG(args.Length() - 1, cb);
-
-  EIOBaton *baton = new EIOBaton(txn);
-  baton->cb = v8::Persistent<v8::Function>::New(cb);
-
-  txn->Ref();
-  eio_custom(EIO_Abort, EIO_PRI_DEFAULT, EIO_After_ReturnStatus, baton);
-  ev_ref(EV_DEFAULT_UC);
-
-  return v8::Undefined();
+  int rc = txn->_txn->abort(txn->_txn);
+  DB_RES(rc, db_strerror(rc), msg);
+  v8::Local<v8::Value> result = { msg };
+  return result;
 }
 
-v8::Handle<v8::Value> DbTxn::Commit(const v8::Arguments &args) {
+v8::Handle<v8::Value> DbTxn::CommitS(const v8::Arguments &args) {
   v8::HandleScope scope;
 
   DbTxn* txn = node::ObjectWrap::Unwrap<DbTxn>(args.This());
   REQ_INT_ARG(0, flags);
-  REQ_FN_ARG(args.Length() - 1, cb);
 
-  EIOBaton *baton = new EIOBaton(txn);
-  baton->cb = v8::Persistent<v8::Function>::New(cb);
-  baton->flags = flags;
-
-  txn->Ref();
-  eio_custom(EIO_Commit, EIO_PRI_DEFAULT, EIO_After_ReturnStatus, baton);
-  ev_ref(EV_DEFAULT_UC);
-
-  return v8::Undefined();
+  int rc = txn->_txn->commit(txn->_txn, flags);
+  DB_RES(rc, db_strerror(rc), msg);
+  v8::Local<v8::Value> result = { msg };
+  return result;
 }
 
 v8::Handle<v8::Value> DbTxn::New(const v8::Arguments& args) {
@@ -113,8 +71,8 @@ void DbTxn::Initialize(v8::Handle<v8::Object> target) {
 
   txn_id_sym = NODE_PSYMBOL("id");
 
-  NODE_SET_PROTOTYPE_METHOD(t, "abort", Abort);
-  NODE_SET_PROTOTYPE_METHOD(t, "_commit", Commit);
+  NODE_SET_PROTOTYPE_METHOD(t, "abortSync", AbortS);
+  NODE_SET_PROTOTYPE_METHOD(t, "_commitSync", CommitS);
   NODE_SET_PROTOTYPE_METHOD(t, "id", Id);
 
   target->Set(v8::String::NewSymbol("DbTxn"), t->GetFunction());

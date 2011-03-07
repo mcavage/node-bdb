@@ -13,10 +13,13 @@ class Db: public DbObject {
 
   static v8::Handle<v8::Value> Cursor(const v8::Arguments &);
   static v8::Handle<v8::Value> Del(const v8::Arguments &);
+  static v8::Handle<v8::Value> DelS(const v8::Arguments &);
   static v8::Handle<v8::Value> Get(const v8::Arguments &);
+  static v8::Handle<v8::Value> GetS(const v8::Arguments &);
   static v8::Handle<v8::Value> New(const v8::Arguments &);
   static v8::Handle<v8::Value> OpenS(const v8::Arguments &);
   static v8::Handle<v8::Value> Put(const v8::Arguments &);
+  static v8::Handle<v8::Value> PutS(const v8::Arguments &);
 
  protected:
   static int EIO_Get(eio_req *req);

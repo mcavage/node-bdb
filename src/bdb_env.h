@@ -27,6 +27,7 @@ class DbEnv: public DbObject {
   static v8::Handle<v8::Value> SetTxnMax(const v8::Arguments &);
   static v8::Handle<v8::Value> SetTxnTimeout(const v8::Arguments &);
   static v8::Handle<v8::Value> TxnBegin(const v8::Arguments &);
+  static v8::Handle<v8::Value> TxnBeginS(const v8::Arguments &);
   static v8::Handle<v8::Value> TxnCheckpoint(const v8::Arguments &);
 
 
@@ -35,6 +36,7 @@ class DbEnv: public DbObject {
   DbEnv &operator=(const DbEnv &);
 
   static int EIO_Checkpoint(eio_req *req);
+  static int EIO_TxnBegin(eio_req *req);
 
   DB_ENV *_env;
 };

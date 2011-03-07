@@ -47,18 +47,18 @@ extern v8::Persistent<v8::String> err_message_sym;
     RET_EXC("argument " #I " must be a object");        \
   v8::Local<v8::Object> VAR(args[I]->ToObject());
 
-#define OPT_TXN_ARG(I, TXN)                             \
-  REQ_ARGS();                                           \
-  v8::Local<v8::Object> _txnObj;                        \
-  if (args.Length() <= (I))                             \
-    RET_EXC("Not enough arguments");                    \
-  if (args[I]->IsNull() || args[I]->IsUndefined()) {    \
-    TXN = NULL;                                         \
-  } else {                                              \
-    if (!args[I]->IsObject())                           \
-      RET_EXC("argument " #I " must be a object");      \
-    _txnObj = v8::Local<v8::Object>::Cast(args[I]);     \
-    TXN = node::ObjectWrap::Unwrap<DbTxn>(_txnObj);     \
+#define OPT_TXN_ARG(I, TXN)                                             \
+  REQ_ARGS();                                                           \
+  v8::Local<v8::Object> _txn_ ## TXN ## _Obj;                           \
+  if (args.Length() <= (I))                                             \
+    RET_EXC("Not enough arguments");                                    \
+  if (args[I]->IsNull() || args[I]->IsUndefined()) {                    \
+    TXN = NULL;                                                         \
+  } else {                                                              \
+    if (!args[I]->IsObject())                                           \
+      RET_EXC("argument " #I " must be a object");                      \
+    _txn_ ## TXN ## _Obj = v8::Local<v8::Object>::Cast(args[I]);        \
+    TXN = node::ObjectWrap::Unwrap<DbTxn>(_txn_ ## TXN ## _Obj);        \
   }
 
 #define REQ_BUF_ARG(I, VAR)                                 \

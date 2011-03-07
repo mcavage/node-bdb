@@ -17,8 +17,8 @@ class DbTxn: public DbObject {
 
   static v8::Handle<v8::Value> New(const v8::Arguments &);
   static v8::Handle<v8::Value> Id(const v8::Arguments &);
-  static v8::Handle<v8::Value> Abort(const v8::Arguments &);
-  static v8::Handle<v8::Value> Commit(const v8::Arguments &);
+  static v8::Handle<v8::Value> AbortS(const v8::Arguments &);
+  static v8::Handle<v8::Value> CommitS(const v8::Arguments &);
 
  private:
   DbTxn(const DbTxn &);

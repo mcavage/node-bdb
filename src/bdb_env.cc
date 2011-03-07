@@ -19,6 +19,18 @@ class EIOCheckpointBaton: public EIOBaton {
   EIOCheckpointBaton &operator=(const EIOCheckpointBaton &);
 };
 
+class EIOTxnBaton: public EIOBaton {
+ public:
+  explicit EIOTxnBaton(DbEnv *env): EIOBaton(env), txn(0) {}
+
+  virtual ~EIOTxnBaton() {}
+
+  DbTxn *txn;
+
+ private:
+  EIOTxnBaton(const EIOTxnBaton &);
+  EIOTxnBaton &operator=(const EIOTxnBaton &);
+};
 
 DbEnv::DbEnv(): DbObject(), _env(0) {}
 
@@ -34,6 +46,24 @@ DB_ENV *&DbEnv::getDB_ENV() {
 }
 
 // Start EIO Exposed Methonds
+
+int DbEnv::EIO_TxnBegin(eio_req *req) {
+  EIOTxnBaton *baton = static_cast<EIOTxnBaton *>(req->data);
+
+  if (baton->object == NULL ||
+      dynamic_cast<DbEnv *>(baton->object)->_env == NULL) {
+    return 0;
+  }
+
+  DB_ENV *&env = dynamic_cast<DbEnv *>(baton->object)->_env;
+
+  baton->status = env->txn_begin(env,
+                                 NULL,
+                                 baton->txn ? &(baton->txn->getDB_TXN()) : NULL,
+                                 baton->flags);
+
+  return 0;
+}
 
 int DbEnv::EIO_Checkpoint(eio_req *req) {
   EIOCheckpointBaton *baton = static_cast<EIOCheckpointBaton *>(req->data);
@@ -192,9 +222,32 @@ v8::Handle<v8::Value> DbEnv::TxnBegin(const v8::Arguments &args) {
   DbTxn *txn = NULL;
   OPT_TXN_ARG(0, txn);
   REQ_INT_ARG(1, flags);
+  REQ_FN_ARG(2, cb);
+
+  EIOTxnBaton *baton = new EIOTxnBaton(env);
+  baton->cb = v8::Persistent<v8::Function>::New(cb);
+  baton->flags = flags;
+  baton->txn = txn;
+
+  env->Ref();
+  eio_custom(EIO_TxnBegin, EIO_PRI_DEFAULT, EIO_After_ReturnStatus, baton);
+  ev_ref(EV_DEFAULT_UC);
+
+  return v8::Undefined();
+}
+
+v8::Handle<v8::Value> DbEnv::TxnBeginS(const v8::Arguments &args) {
+  v8::HandleScope scope;
+
+  DbEnv* env = node::ObjectWrap::Unwrap<DbEnv>(args.This());
+  DbTxn *parent = NULL;
+  DbTxn *txn = NULL;
+  OPT_TXN_ARG(0, txn);
+  OPT_TXN_ARG(1, parent);
+  REQ_INT_ARG(2, flags);
 
   int rc = env->_env->txn_begin(env->_env,
-                                NULL,  // TODO(mcavage): nested txns
+                                parent ? parent->getDB_TXN() : NULL,
                                 txn ? &(txn->getDB_TXN()) : NULL,
                                 flags);
 
@@ -210,7 +263,7 @@ v8::Handle<v8::Value> DbEnv::TxnCheckpoint(const v8::Arguments& args) {
   REQ_INT_ARG(0, kbytes);
   REQ_INT_ARG(1, minutes);
   REQ_INT_ARG(2, flags);
-  REQ_FN_ARG(args.Length() - 1, cb);
+  REQ_FN_ARG(3, cb);
 
   EIOCheckpointBaton *baton = new EIOCheckpointBaton(env);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
@@ -242,6 +295,7 @@ void DbEnv::Initialize(v8::Handle<v8::Object> target) {
   NODE_SET_PROTOTYPE_METHOD(t, "setTxnMax", SetTxnMax);
   NODE_SET_PROTOTYPE_METHOD(t, "setTxnTimeout", SetTxnTimeout);
   NODE_SET_PROTOTYPE_METHOD(t, "_txnBegin", TxnBegin);
+  NODE_SET_PROTOTYPE_METHOD(t, "_txnBeginSync", TxnBeginS);
   NODE_SET_PROTOTYPE_METHOD(t, "_txnCheckpoint", TxnCheckpoint);
 
   target->Set(v8::String::NewSymbol("DbEnv"), t->GetFunction());

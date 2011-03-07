@@ -11,6 +11,10 @@
 #include "bdb_txn.h"
 
 using v8::FunctionTemplate;
+using v8::Persistent;
+using v8::String;
+
+v8::Persistent<v8::String> val_sym;
 
 class EIODbBaton: public EIOBaton {
  public:
@@ -146,8 +150,7 @@ v8::Handle<v8::Value> Db::OpenS(const v8::Arguments& args) {
   }
 
   DB_RES(rc, db_strerror(rc), msg);
-  v8::Local<v8::Value> result = { msg };
-  return result;
+  return msg;
 }
 
 v8::Handle<v8::Value> Db::Get(const v8::Arguments& args) {
@@ -173,6 +176,38 @@ v8::Handle<v8::Value> Db::Get(const v8::Arguments& args) {
   ev_ref(EV_DEFAULT_UC);
 
   return v8::Undefined();
+}
+
+v8::Handle<v8::Value> Db::GetS(const v8::Arguments& args) {
+  v8::HandleScope scope;
+
+  Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
+  DbTxn *txn = NULL;
+
+  OPT_TXN_ARG(0, txn);
+  REQ_BUF_ARG(1, key);
+  REQ_INT_ARG(2, flags);
+
+  DBT dbt_key = {0};
+  DBT dbt_val = {0};
+  memset(&dbt_key, 0, sizeof(DBT));
+  memset(&dbt_val, 0, sizeof(DBT));
+  dbt_key.data = key;
+  dbt_key.size = key_len;
+  dbt_val.flags = DB_DBT_MALLOC;
+
+  DB_TXN *db_txn = txn ? txn->getDB_TXN() : NULL;
+  int rc = db->_db->get(db->_db, db_txn, &dbt_key, &dbt_val, flags);
+
+  DB_RES(rc, db_strerror(rc), msg);
+  node::Buffer *buf = node::Buffer::New(dbt_val.size);
+  memcpy(node::Buffer::Data(buf), dbt_val.data, dbt_val.size);
+  if (dbt_val.data != NULL) {
+    free(dbt_val.data);
+  }
+
+  msg->Set(val_sym, buf->handle_);
+  return msg;
 }
 
 v8::Handle<v8::Value> Db::Put(const v8::Arguments& args) {
@@ -203,6 +238,33 @@ v8::Handle<v8::Value> Db::Put(const v8::Arguments& args) {
   return v8::Undefined();
 }
 
+v8::Handle<v8::Value> Db::PutS(const v8::Arguments& args) {
+  v8::HandleScope scope;
+
+  Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
+  DbTxn *txn = NULL;
+
+  OPT_TXN_ARG(0, txn);
+  REQ_BUF_ARG(1, key);
+  REQ_BUF_ARG(2, val);
+  REQ_INT_ARG(3, flags);
+
+  DBT dbt_key = {0};
+  DBT dbt_val = {0};
+  memset(&dbt_key, 0, sizeof(DBT));
+  memset(&dbt_val, 0, sizeof(DBT));
+  dbt_key.data = key;
+  dbt_key.size = key_len;
+  dbt_val.data = val;
+  dbt_val.size = val_len;
+
+  DB_TXN *db_txn = txn ? txn->getDB_TXN() : NULL;
+  int rc = db->_db->put(db->_db, db_txn, &dbt_key, &dbt_val, flags);
+
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
 v8::Handle<v8::Value> Db::Del(const v8::Arguments& args) {
   v8::HandleScope scope;
 
@@ -228,6 +290,28 @@ v8::Handle<v8::Value> Db::Del(const v8::Arguments& args) {
   return v8::Undefined();
 }
 
+v8::Handle<v8::Value> Db::DelS(const v8::Arguments& args) {
+  v8::HandleScope scope;
+
+  Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
+  DbTxn *txn = NULL;
+
+  OPT_TXN_ARG(0, txn);
+  REQ_BUF_ARG(1, key);
+  REQ_INT_ARG(3, flags);
+
+  DBT dbt_key = {0};
+  memset(&dbt_key, 0, sizeof(DBT));
+  dbt_key.data = key;
+  dbt_key.size = key_len;
+
+  DB_TXN *db_txn = txn ? txn->getDB_TXN() : NULL;
+  int rc = db->_db->del(db->_db, db_txn, &dbt_key, flags);
+
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
 v8::Handle<v8::Value> Db::Cursor(const v8::Arguments& args) {
   v8::HandleScope scope;
 
@@ -246,8 +330,7 @@ v8::Handle<v8::Value> Db::Cursor(const v8::Arguments& args) {
                            flags);
 
   DB_RES(rc, db_strerror(rc), msg);
-  v8::Local<v8::Value> result = { msg };
-  return result;
+  return msg;
 }
 
 v8::Handle<v8::Value> Db::New(const v8::Arguments& args) {
@@ -264,10 +347,15 @@ void Db::Initialize(v8::Handle<v8::Object> target) {
   v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
 
+  val_sym = NODE_PSYMBOL("value");
+
   NODE_SET_PROTOTYPE_METHOD(t, "_openSync", OpenS);
   NODE_SET_PROTOTYPE_METHOD(t, "_get", Get);
+  NODE_SET_PROTOTYPE_METHOD(t, "_getSync", GetS);
   NODE_SET_PROTOTYPE_METHOD(t, "_put", Put);
+  NODE_SET_PROTOTYPE_METHOD(t, "_putSync", PutS);
   NODE_SET_PROTOTYPE_METHOD(t, "_del", Del);
+  NODE_SET_PROTOTYPE_METHOD(t, "_delSync", DelS);
   NODE_SET_PROTOTYPE_METHOD(t, "_cursor", Cursor);
 
   target->Set(v8::String::NewSymbol("Db"), t->GetFunction());

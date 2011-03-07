@@ -21,7 +21,7 @@ assert.equal(0, stat.code, stat.message);
 function testPut(collection, callback) {
   var coll = collection.slice(0);
   var txn = new bdb.DbTxn();
-  stat = env.txnBegin({txn: txn});
+  stat = env.txnBeginSync({txn: txn});
   assert.equal(0, stat.code, stat.message);
   var cursor = new bdb.DbCursor();
   stat = db.cursor({cursor: cursor, txn: txn});
@@ -32,10 +32,9 @@ function testPut(collection, callback) {
 		val: new Buffer(record)}, function(res) {
       assert.equal(0, res.code, res.message);
       if (coll.length === 0) {
-	txn.commit(function(res) {
-	  assert.equal(0, res.code, res.message);
-          callback();
-	});
+	stat = txn.commitSync();
+	assert.equal(0, stat.code, stat.message);
+        callback();
       } else {
         insertOne();
       }
@@ -46,7 +45,7 @@ function testPut(collection, callback) {
 function testGet(collection, callback) {
   var coll = collection.slice(0);
   var txn = new bdb.DbTxn();
-  stat = env.txnBegin({txn: txn});
+  stat = env.txnBeginSync({txn: txn});
   assert.equal(0, stat.code, stat.message);
   var cursor = new bdb.DbCursor();
   stat = db.cursor({cursor: cursor, txn: txn});
@@ -58,10 +57,9 @@ function testGet(collection, callback) {
       assert.equal(record, key.toString(encoding='utf8'), "get key mismatch");
       assert.equal(record, val.toString(encoding='utf8'), "get val mismatch");
       if (coll.length === 0) {
-	txn.commit(function(res) {
-	  assert.equal(0, res.code, res.message);
-          callback();
-	});
+	stat = txn.commitSync();
+	assert.equal(0, stat.code, stat.message);
+        callback();
       } else {
         getOne();
       }
@@ -72,7 +70,7 @@ function testGet(collection, callback) {
 function testDel(collection, callback) {
   var coll = collection.slice(0);
   var txn = new bdb.DbTxn();
-  stat = env.txnBegin({txn: txn});
+  stat = env.txnBeginSync({txn: txn});
   assert.equal(0, stat.code, stat.message);
   var cursor = new bdb.DbCursor();
   stat = db.cursor({cursor: cursor, txn: txn});
@@ -86,10 +84,9 @@ function testDel(collection, callback) {
       cursor.del(function(res) {
 	assert.equal(0, res.code, res.message);
 	if (coll.length === 0) {
-	  txn.commit(function(res) {
-	    assert.equal(0, res.code, res.message);
-            callback();
-	  });
+	  stat = txn.commitSync();
+	  assert.equal(0, stat.code, stat.message);
+          callback();
 	} else {
           delOne();
 	}

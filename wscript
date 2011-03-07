@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-## -*- Mode: python; py-indent-offset: 2; indent-tabs-mode: nil; coding: utf-8; -*-
 
 import os, subprocess, sys
 import Options, Utils
@@ -63,16 +62,19 @@ def configure(conf):
     conf.env.append_value('LIBPATH', o.shared_bdb_libpath)
   else:
     os.chdir(bdb_bld_dir)
-    subprocess.check_call(['../dist/configure',
-                           '--enable-dtrace',
-                           '--enable-perfmon-statistics',
-                           '--with-cryptography=yes',
-                           '--disable-shared',
-                           '--disable-replication',
-                           '--enable-cxx=no',
-                           '--enable-java=no',
-                           '--enable-sql=no',
-                           '--enable-tcl=no'])
+    args = ['../dist/configure',
+            '--enable-dtrace',
+            '--enable-perfmon-statistics',
+            '--with-cryptography=yes',
+            '--disable-shared',
+            '--disable-replication',
+            '--enable-cxx=no',
+            '--enable-java=no',
+            '--enable-sql=no',
+            '--enable-tcl=no']
+    if o.debug:
+      args.append('--enable-debug=yes')
+    subprocess.check_call(args)
     conf.env.append_value('CPPPATH', bdb_bld_dir)
     conf.env.append_value('LIBPATH', bdb_bld_dir)
     os.chdir(cwd)
@@ -114,7 +116,7 @@ def build(bld):
   else:
     obj.lib = "db-5"
 
-def tests(ctx):
+def test(ctx):
   system('node test/test_open.js')
   system('node test/test_put.js')
   system('node test/test_get.js')
@@ -127,6 +129,8 @@ def distclean(ctx):
   os.popen('make distclean 2>&1 > /dev/null')
   os.chdir(cwd)
   os.popen('rm -rf .lock-wscript build')
+  os.popen('rm -rf ' + bdb_bld_dir + '/.* 2>&1 > /dev/null')
+  os.popen('rm -rf ' + bdb_bld_dir + '/*')
 
 def shutdown():
   t = 'bdb_bindings.node';

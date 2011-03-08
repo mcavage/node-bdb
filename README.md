@@ -11,7 +11,7 @@ mission-critical data. BDB can gracefully scale from managing a few bytes to
 terabytes of data. For the most part, BDB is limited only by your system's
 available physical resources.
 
-## Why DBD and node.js?
+## Why BDB and node.js?
 
 BDB is a proven technology that gives you great read/write performance and
 offers you real durability  (since it's transactional write-ahead-logging).

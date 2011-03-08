@@ -71,7 +71,8 @@ def configure(conf):
             '--enable-cxx=no',
             '--enable-java=no',
             '--enable-sql=no',
-            '--enable-tcl=no']
+            '--enable-tcl=no',
+						'--with-pic=yes']
     if o.debug:
       args.append('--enable-debug=yes')
     subprocess.check_call(args)
@@ -82,6 +83,7 @@ def configure(conf):
   conf.env.append_value('CXXFLAGS', ['-D_FILE_OFFSET_BITS=64',
                                      '-D_LARGEFILE_SOURCE',
                                      '-Wall',
+																		 '-fPIC',
                                      '-Werror'])
   if o.debug:
     conf.env.append_value('CXXFLAGS', ["-g"])
@@ -135,6 +137,5 @@ def distclean(ctx):
   os.popen('make distclean 2>&1 > /dev/null')
   os.chdir(cwd)
   os.popen('rm -rf .lock-wscript build')
-  os.popen('rm -rf ' + bdb_bld_dir + '/.* 2>&1 > /dev/null')
   os.popen('rm -rf ' + bdb_bld_dir + '/*')
 

@@ -11,6 +11,18 @@ mission-critical data. BDB can gracefully scale from managing a few bytes to
 terabytes of data. For the most part, BDB is limited only by your system's
 available physical resources.
 
+## Why DBD and node.js?
+
+BDB is a proven technology that gives you great read/write performance and
+offers you real durability  (since it's transactional write-ahead-logging).
+
+It seems a popular pattern for node.js is to maintain smaller services that are
+offloading some performance or scaling critical portion of your webapp, but
+node doesn't come with any way for you to store data, leaving you with the
+problem of what to do with it.  BDB is an extremely effecient in-process
+database, that you can wed to node.js to get high-throughput storage with full
+ACID guarantees.
+
 ## How do I install it?
 
     npm install bdb

@@ -63,8 +63,6 @@ def configure(conf):
   else:
     os.chdir(bdb_bld_dir)
     args = ['../dist/configure',
-            '--enable-dtrace',
-            '--enable-perfmon-statistics',
             '--with-cryptography=yes',
             '--disable-shared',
             '--disable-replication',
@@ -72,9 +70,14 @@ def configure(conf):
             '--enable-java=no',
             '--enable-sql=no',
             '--enable-tcl=no',
-						'--with-pic=yes']
+            '--with-pic=yes']
+
     if o.debug:
       args.append('--enable-debug=yes')
+    if sys.platform.startswith("sunos"):
+      args.append('--enable-dtrace')
+      args.append('--enable-perfmon-statistics')
+
     subprocess.check_call(args)
     conf.env.append_value('CPPPATH', bdb_bld_dir)
     conf.env.append_value('LIBPATH', bdb_bld_dir)
@@ -83,7 +86,7 @@ def configure(conf):
   conf.env.append_value('CXXFLAGS', ['-D_FILE_OFFSET_BITS=64',
                                      '-D_LARGEFILE_SOURCE',
                                      '-Wall',
-																		 '-fPIC',
+                                     '-fPIC',
                                      '-Werror'])
   if o.debug:
     conf.env.append_value('CXXFLAGS', ["-g"])

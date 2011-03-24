@@ -8,7 +8,6 @@
 class Db;
 class DbCursor;
 class DbEnv;
-class DbTxn;
 
 class DbObject: public node::ObjectWrap {
  public:
@@ -25,7 +24,6 @@ class DbObject: public node::ObjectWrap {
   friend class Db;
   friend class DbCursor;
   friend class DbEnv;
-  friend class DbTxn;
 };
 
 

@@ -1,14 +1,48 @@
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
+#include <sched.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <node_buffer.h>
 
 #include "bdb_common.h"
-#include "bdb_cursor.h"
 #include "bdb_db.h"
 #include "bdb_env.h"
-#include "bdb_txn.h"
+
+#define TXN_BEGIN(DBOBJ)                         \
+  DB_ENV *&_env = DBOBJ->_env;                   \
+  DB_TXN *_txn = NULL;                           \
+  int _attempts = 0;                             \
+  int _rc = 0;                                   \
+again:                                           \
+  if (DBOBJ->_transactional) {                   \
+    _rc = _env->txn_begin(_env, NULL, &_txn, 0); \
+    if (_rc != 0)                                \
+      goto out;                                  \
+  }                                              \
+
+
+#define TXN_END(DBOBJ, STATUS)                                          \
+  if (DBOBJ->_transactional) {                                          \
+    if (STATUS == 0) {                                                  \
+      STATUS = _txn->commit(_txn, 0);                                   \
+    } else if (STATUS == DB_LOCK_DEADLOCK &&                            \
+               ++_attempts <= DBOBJ->_retries) {                        \
+      _txn->abort(_txn);                                                \
+      sched_yield();                                                    \
+      goto again;                                                       \
+    } else {                                                            \
+      _txn->abort(_txn);                                                \
+    }                                                                   \
+  }                                                                     \
+ out:
+
+
+#define INIT_DBT(NAME, LEN)                              \
+  DBT dbt_ ## NAME = {0};                                \
+  memset(&dbt_ ## NAME, 0, sizeof(DBT));                 \
+  dbt_ ## NAME.data = NAME;                              \
+  dbt_ ## NAME.size = LEN
 
 using v8::FunctionTemplate;
 using v8::Persistent;
@@ -18,7 +52,7 @@ v8::Persistent<v8::String> val_sym;
 
 class EIODbBaton: public EIOBaton {
  public:
-  explicit EIODbBaton(Db *db): EIOBaton(db), env(0), txn(0) {
+  explicit EIODbBaton(Db *db): EIOBaton(db), env(0) {
     memset(&key, 0, sizeof(DBT));
     memset(&val, 0, sizeof(DBT));
   }
@@ -26,7 +60,6 @@ class EIODbBaton: public EIOBaton {
   virtual ~EIODbBaton() {}
 
   DbEnv *env;
-  DbTxn *txn;
   DBT key;
   DBT val;
 
@@ -36,7 +69,7 @@ class EIODbBaton: public EIOBaton {
 };
 
 
-Db::Db(): DbObject(), _db(0) {}
+Db::Db(): DbObject(), _db(0), _env(0), _retries(0), _transactional(false) {}
 
 Db::~Db() {
   if (_db != NULL) {
@@ -49,15 +82,19 @@ Db::~Db() {
 
 int Db::EIO_Get(eio_req *req) {
   EIODbBaton *baton = static_cast<EIODbBaton *>(req->data);
-
   if (baton->object == NULL || dynamic_cast<Db *>(baton->object)->_db == NULL)
     return 0;
 
-  DB *&db = dynamic_cast<Db *>(baton->object)->_db;
-  DB_TXN *txn = baton->txn ? baton->txn->getDB_TXN() : NULL;
+  Db *dbObj = dynamic_cast<Db *>(baton->object);
+  DB *&db = dbObj->_db;
+
   baton->val.flags = DB_DBT_MALLOC;
 
-  baton->status = db->get(db, txn, &(baton->key), &(baton->val), baton->flags);
+  TXN_BEGIN(dbObj);
+
+  baton->status = db->get(db, _txn, &(baton->key), &(baton->val), baton->flags);
+
+  TXN_END(dbObj, baton->status);
 
   return 0;
 }
@@ -98,24 +135,31 @@ int Db::EIO_Put(eio_req *req) {
   if (baton->object == NULL || dynamic_cast<Db *>(baton->object)->_db == NULL)
     return 0;
 
-  DB *&db = dynamic_cast<Db *>(baton->object)->_db;
-  DB_TXN *txn = baton->txn ? baton->txn->getDB_TXN() : NULL;
+  Db *dbObj = dynamic_cast<Db *>(baton->object);
+  DB *&db = dbObj->_db;
 
-  baton->status = db->put(db, txn, &(baton->key), &(baton->val), baton->flags);
+  TXN_BEGIN(dbObj);
+
+  baton->status = db->put(db, _txn, &(baton->key), &(baton->val), baton->flags);
+
+  TXN_END(dbObj, baton->status);
 
   return 0;
 }
 
 int Db::EIO_Del(eio_req *req) {
   EIODbBaton *baton = static_cast<EIODbBaton *>(req->data);
-
   if (baton->object == NULL || dynamic_cast<Db *>(baton->object)->_db == NULL)
     return 0;
 
-  DB *&db = dynamic_cast<Db *>(baton->object)->_db;
-  DB_TXN *txn = baton->txn ? baton->txn->getDB_TXN() : NULL;
+  Db *dbObj = dynamic_cast<Db *>(baton->object);
+  DB *&db = dbObj->_db;
 
-  baton->status = db->del(db, txn, &(baton->key), baton->flags);
+  TXN_BEGIN(dbObj);
+
+  baton->status = db->del(db, _txn, &(baton->key), baton->flags);
+
+  TXN_END(dbObj, baton->status);
 
   return 0;
 }
@@ -134,10 +178,15 @@ v8::Handle<v8::Value> Db::OpenS(const v8::Arguments& args) {
   REQ_INT_ARG(2, type);
   REQ_INT_ARG(3, flags);
   REQ_INT_ARG(4, mode);
+  REQ_INT_ARG(5, retries);
+
+  db->_env = env->getDB_ENV();
+  db->_transactional = env->isTransactional();
+  db->_retries = retries;
 
   int rc = 0;
   if (db->_db == NULL)
-    rc = db_create(&(db->_db), env->getDB_ENV(), 0);
+    rc = db_create(&(db->_db), db->_env, 0);
 
   if (db->_db != NULL && rc == 0) {
     rc = db->_db->open(db->_db,
@@ -169,17 +218,14 @@ v8::Handle<v8::Value> Db::Get(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  DbTxn *txn = NULL;
 
-  OPT_TXN_ARG(0, txn);
-  REQ_BUF_ARG(1, key);
-  REQ_INT_ARG(2, flags);
-  REQ_FN_ARG(args.Length() - 1, cb);
+  REQ_BUF_ARG(0, key);
+  REQ_INT_ARG(1, flags);
+  REQ_FN_ARG(2, cb);
 
   EIODbBaton *baton = new EIODbBaton(db);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
   baton->flags = flags;
-  baton->txn = txn;
   baton->key.data = key;
   baton->key.size = key_len;
 
@@ -193,23 +239,22 @@ v8::Handle<v8::Value> Db::Get(const v8::Arguments& args) {
 v8::Handle<v8::Value> Db::GetS(const v8::Arguments& args) {
   v8::HandleScope scope;
 
+  int rc = 0;
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  DbTxn *txn = NULL;
 
-  OPT_TXN_ARG(0, txn);
-  REQ_BUF_ARG(1, key);
-  REQ_INT_ARG(2, flags);
+  REQ_BUF_ARG(0, key);
+  REQ_INT_ARG(1, flags);
 
-  DBT dbt_key = {0};
+  INIT_DBT(key, key_len);
   DBT dbt_val = {0};
-  memset(&dbt_key, 0, sizeof(DBT));
   memset(&dbt_val, 0, sizeof(DBT));
-  dbt_key.data = key;
-  dbt_key.size = key_len;
   dbt_val.flags = DB_DBT_MALLOC;
 
-  DB_TXN *db_txn = txn ? txn->getDB_TXN() : NULL;
-  int rc = db->_db->get(db->_db, db_txn, &dbt_key, &dbt_val, flags);
+  TXN_BEGIN(db);
+
+  rc = db->_db->get(db->_db, _txn, &dbt_key, &dbt_val, flags);
+
+  TXN_END(db, rc);
 
   DB_RES(rc, db_strerror(rc), msg);
   node::Buffer *buf = node::Buffer::New(dbt_val.size);
@@ -226,18 +271,15 @@ v8::Handle<v8::Value> Db::Put(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  DbTxn *txn = NULL;
 
-  OPT_TXN_ARG(0, txn);
-  REQ_BUF_ARG(1, key);
-  REQ_BUF_ARG(2, value);
-  REQ_INT_ARG(3, flags);
-  REQ_FN_ARG(args.Length() - 1, cb);
+  REQ_BUF_ARG(0, key);
+  REQ_BUF_ARG(1, value);
+  REQ_INT_ARG(2, flags);
+  REQ_FN_ARG(3, cb);
 
   EIODbBaton *baton = new EIODbBaton(db);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
   baton->flags = flags;
-  baton->txn = txn;
   baton->key.data = key;
   baton->key.size = key_len;
   baton->val.data = value;
@@ -254,24 +296,19 @@ v8::Handle<v8::Value> Db::PutS(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  DbTxn *txn = NULL;
+  REQ_BUF_ARG(0, key);
+  REQ_BUF_ARG(1, val);
+  REQ_INT_ARG(2, flags);
 
-  OPT_TXN_ARG(0, txn);
-  REQ_BUF_ARG(1, key);
-  REQ_BUF_ARG(2, val);
-  REQ_INT_ARG(3, flags);
+  int rc = 0;
+  INIT_DBT(key, key_len);
+  INIT_DBT(val, val_len);
 
-  DBT dbt_key = {0};
-  DBT dbt_val = {0};
-  memset(&dbt_key, 0, sizeof(DBT));
-  memset(&dbt_val, 0, sizeof(DBT));
-  dbt_key.data = key;
-  dbt_key.size = key_len;
-  dbt_val.data = val;
-  dbt_val.size = val_len;
+  TXN_BEGIN(db);
 
-  DB_TXN *db_txn = txn ? txn->getDB_TXN() : NULL;
-  int rc = db->_db->put(db->_db, db_txn, &dbt_key, &dbt_val, flags);
+  rc = db->_db->put(db->_db, _txn, &dbt_key, &dbt_val, flags);
+
+  TXN_END(db, rc);
 
   DB_RES(rc, db_strerror(rc), msg);
   return msg;
@@ -281,17 +318,14 @@ v8::Handle<v8::Value> Db::Del(const v8::Arguments& args) {
   v8::HandleScope scope;
 
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  DbTxn *txn = NULL;
 
-  OPT_TXN_ARG(0, txn);
-  REQ_BUF_ARG(1, key);
-  REQ_INT_ARG(2, flags);
-  REQ_FN_ARG(args.Length() - 1, cb);
+  REQ_BUF_ARG(0, key);
+  REQ_INT_ARG(1, flags);
+  REQ_FN_ARG(2, cb);
 
   EIODbBaton *baton = new EIODbBaton(db);
   baton->cb = v8::Persistent<v8::Function>::New(cb);
   baton->flags = flags;
-  baton->txn = txn;
   baton->key.data = key;
   baton->key.size = key_len;
 
@@ -305,41 +339,19 @@ v8::Handle<v8::Value> Db::Del(const v8::Arguments& args) {
 v8::Handle<v8::Value> Db::DelS(const v8::Arguments& args) {
   v8::HandleScope scope;
 
-  Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
-  DbTxn *txn = NULL;
-
-  OPT_TXN_ARG(0, txn);
-  REQ_BUF_ARG(1, key);
-  REQ_INT_ARG(3, flags);
-
-  DBT dbt_key = {0};
-  memset(&dbt_key, 0, sizeof(DBT));
-  dbt_key.data = key;
-  dbt_key.size = key_len;
-
-  DB_TXN *db_txn = txn ? txn->getDB_TXN() : NULL;
-  int rc = db->_db->del(db->_db, db_txn, &dbt_key, flags);
-
-  DB_RES(rc, db_strerror(rc), msg);
-  return msg;
-}
-
-v8::Handle<v8::Value> Db::Cursor(const v8::Arguments& args) {
-  v8::HandleScope scope;
-
+  int rc = 0;
   Db* db = node::ObjectWrap::Unwrap<Db>(args.This());
 
-  DbTxn *txn = NULL;
-  OPT_TXN_ARG(0, txn);
-  REQ_OBJ_ARG(1, cursorObj);
-  DbCursor *dbCursor = node::ObjectWrap::Unwrap<DbCursor>(cursorObj);
-  REQ_INT_ARG(2, flags);
+  REQ_BUF_ARG(0, key);
+  REQ_INT_ARG(1, flags);
 
-  DBC *&cursor = dbCursor->getDBC();
-  int rc = db->_db->cursor(db->_db,
-                           txn ? txn->getDB_TXN() : NULL,
-                           &cursor,
-                           flags);
+  INIT_DBT(key, key_len);
+
+  TXN_BEGIN(db);
+
+  rc = db->_db->del(db->_db, _txn, &dbt_key, flags);
+
+  TXN_END(db, rc);
 
   DB_RES(rc, db_strerror(rc), msg);
   return msg;
@@ -369,7 +381,6 @@ void Db::Initialize(v8::Handle<v8::Object> target) {
   NODE_SET_PROTOTYPE_METHOD(t, "_putSync", PutS);
   NODE_SET_PROTOTYPE_METHOD(t, "_del", Del);
   NODE_SET_PROTOTYPE_METHOD(t, "_delSync", DelS);
-  NODE_SET_PROTOTYPE_METHOD(t, "_cursor", Cursor);
 
   target->Set(v8::String::NewSymbol("Db"), t->GetFunction());
 }

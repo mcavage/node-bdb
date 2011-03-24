@@ -4,10 +4,8 @@
 #include <v8.h>
 
 #include "bdb_common.h"
-#include "bdb_cursor.h"
 #include "bdb_db.h"
 #include "bdb_env.h"
-#include "bdb_txn.h"
 
 // Node Macros require these
 using v8::Persistent;
@@ -132,7 +130,5 @@ extern "C" {
 
     DbEnv::Initialize(target);
     Db::Initialize(target);
-    DbCursor::Initialize(target);
-    DbTxn::Initialize(target);
   }
 }

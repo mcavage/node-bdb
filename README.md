@@ -52,13 +52,16 @@ have complete control over your concurrency model, there are some complications:
 - Since environment/database open/close can only be done by one thread of
 control, these bindings don't have an asynchronous open/close.  Best practice is
 to open everything at startup time (e.g., before you do a listen()).
-- Transactions can't be active in more than one thread at a time.  So, in node
-best practice is to call DbEnv.txnBegin(), and then call all your DB operation's
-*synchronous* calls in the transaction scope, and commit the transaction with
-commitSync().  Note that your app is not serial since in this fashion all those
-synchronous calls are running on an EIO thread, not the main node event thread.
-(In fact, this will probably make your app faster since you won't be
-context-switching into the EIO subsystem so much).
+- Transactions can't be active in more than one thread at a time.  That
+pretty much screws the pooch for node, unless I did something like what the
+erlang driver does, and maintain a thread pool that "routes" any request
+involving a transaction to the same thread.  Possible, but that's going to bring
+a lot of context switches, and I would need a compelling reason to add in all
+that complexity.  For now, all operations in DB are protected by a transaction
+(assuming you opened the DB transactionally), and I plan on adding a
+conditionalUpdate API in the near future.
+- Because of transactional complications, there is not yet cursor support.  This
+is on my list to add with something like an EventEmitter.
 
 Other information:
 
@@ -76,8 +79,10 @@ very much about data durability, and the applications I work tend to be higher
 read than write.  So, there you go.  YMMV.
 - There's not 100% parity with the BDB API (yet).  Specifically missing are:
    - Secondary indices.  This is top of my list to add.
-   - BDB encryption support.  I'll get to this too.
+   - Conditional updates
+   - Cursors
    - The many BDB APIs supporting configuration/stats. (notice an order here?)
+   - BDB encryption support.  I'll get to this too.
    - Replication: I don't really have plans to add this. It's complicated, and
    hard to make work.  In my experience, you're better off doing this in your
    application;  contrast something like slurpd in the plethora of LDAP systems
@@ -117,8 +122,6 @@ What's supported:
 - `setShmKey(key)`
 - `setTxnMax(max)`
 - `setTxnTimeout(timeout)`
-- `txnBegin(options, callback)`
-- `txnBeginSync(options)`
 - `txnCheckpoint(options, callback)`
 
 ### Db
@@ -139,36 +142,6 @@ What's supported:
 - `putSync(options)`
 - `getSync(options)`
 - `delSync(options)`
-- `cursor(options)`
-
-### Cursor
-
-Loading:
-
-    var cursor = new bdb.DbCursor();
-    db.cursor({cursor: cursor});
-
-What's supported:
-
-- `put(options, callback)`
-- `get(options, callback)`
-- `del(options, callback)`
-
-NOTE:  this isn't well-tested with transactions, and I suspect there might be
-dragons here under load.
-
-### Txn
-
-Loading:
-
-    var txn = new bdb.DbTxn();
-    env.txnBegin({txn: txn}, function(res) {});
-
-What's supported:
-
-- `id()`
-- `abortSync()`
-- `commitSync(options)`
 
 ## License
 
@@ -181,7 +154,6 @@ if those terms don't suit you.
 
 ## TODO/Roadmap
 
-- Making sure cursors work under load
 - Secondary indicies
 - Testing with shared-memory segments and in-memory DBs
 - Parity with config/stat APIs

@@ -17,9 +17,7 @@ int DbObject::EIO_After_ReturnStatus(eio_req *req) {
   if (try_catch.HasCaught()) {
     node::FatalException(try_catch);
   }
-
   baton->object->Unref();
-  baton->cb.Dispose();
   delete baton;
   return 0;
 }
@@ -31,4 +29,6 @@ DbObject::~DbObject() {}
 
 EIOBaton::EIOBaton(DbObject *obj): object(obj), flags(0), status(0) {}
 
-EIOBaton::~EIOBaton() {}
+EIOBaton::~EIOBaton() {
+  cb.Dispose();
+}

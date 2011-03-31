@@ -13,6 +13,8 @@ using v8::String;
 
 v8::Persistent<v8::String> status_code_sym;
 v8::Persistent<v8::String> err_message_sym;
+v8::Persistent<v8::String> key_sym;
+v8::Persistent<v8::String> val_sym;
 
 extern "C" {
   void init(v8::Handle<v8::Object> target) {
@@ -20,6 +22,8 @@ extern "C" {
 
     status_code_sym = NODE_PSYMBOL("code");
     err_message_sym = NODE_PSYMBOL("message");
+    key_sym = NODE_PSYMBOL("key");
+    val_sym = NODE_PSYMBOL("value");
 
     NODE_DEFINE_CONSTANT(target, DB_APPEND);
     NODE_DEFINE_CONSTANT(target, DB_AUTO_COMMIT);
@@ -27,12 +31,14 @@ extern "C" {
     NODE_DEFINE_CONSTANT(target, DB_BUFFER_SMALL);
     NODE_DEFINE_CONSTANT(target, DBC_BULK);
     NODE_DEFINE_CONSTANT(target, DB_CDB_ALLDB);
+    NODE_DEFINE_CONSTANT(target, DB_CHKSUM);
     NODE_DEFINE_CONSTANT(target, DB_CONSUME);
     NODE_DEFINE_CONSTANT(target, DB_CONSUME_WAIT);
     NODE_DEFINE_CONSTANT(target, DB_CURRENT);
     NODE_DEFINE_CONSTANT(target, DB_CREATE);
     NODE_DEFINE_CONSTANT(target, DB_DIRECT_DB);
-    NODE_DEFINE_CONSTANT(target, DB_HOTBACKUP_IN_PROGRESS);
+    NODE_DEFINE_CONSTANT(target, DB_DUP);
+    NODE_DEFINE_CONSTANT(target, DB_ENCRYPT);
     NODE_DEFINE_CONSTANT(target, DB_EXCL);
     NODE_DEFINE_CONSTANT(target, DB_FAILCHK);
     NODE_DEFINE_CONSTANT(target, DB_FIRST);

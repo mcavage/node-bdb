@@ -8,25 +8,34 @@ var helper = require('./helper');
 
 // setup
 var env_location = "/tmp/" + helper.uuid();
-fs.mkdirSync(env_location, 0750);
-
 var env = new BDB.DbEnv();
-var stat = env.openSync({home:env_location});
-assert.equal(0, stat.code, stat.message);
+var db = new BDB.Db();
+var stat = 0;
+var key = new Buffer(helper.uuid());
+var val = new Buffer(helper.uuid());
 
-var db = new BDB.Db(env);
+fs.mkdirSync(env_location, 0750);
+stat = env.openSync({home:env_location});
+assert.equal(0, stat.code, stat.message);
 stat = db.openSync({env: env, file: helper.uuid()});
 assert.equal(0, stat.code, stat.message);
 
-var key = new Buffer(helper.uuid());
-var val = new Buffer(helper.uuid());
 db.put({key: key, val: val}, function(res) {
   assert.equal(0, res.code, res.message);
-  db.get({key: key}, function(res, data) {
+  db.cursorGet(function(res, objects) {
     assert.equal(0, res.code, res.message);
-    assert.ok(data, "no data from get");
-    assert.equal(val, data.toString(encoding='utf8'), 'Data mismatch');
+    assert.ok(objects, "no data from get");
+    assert.equal(1, objects.length, "wrong number of objects");
+
+    assert.equal(key.toString(encoding='utf8'),
+		 objects[0].key.toString(encoding='utf8'),
+		 "key mismatch");
+
+    assert.equal(val.toString(encoding='utf8'),
+		 objects[0].value.toString(encoding='utf8'),
+		 "val mismatch");
+
     exec("rm -fr " + env_location, function(err, stdout, stderr) {});
-    console.log('test_get: PASSED');
+    console.log('test_cursor: PASSED');
   });
 });

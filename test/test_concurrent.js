@@ -12,8 +12,6 @@ var helper = require('./helper');
 var ITERATIONS = 500;
 
 var env = new bdb.DbEnv();
-var db = new bdb.Db();
-
 env.setLockDetect(bdb.FLAGS.DB_LOCK_MAXWRITE);
 env.setMaxLockers(ITERATIONS * 6 + 1);
 env.setMaxLockObjects(ITERATIONS * 6 + 1);
@@ -22,7 +20,9 @@ var env_location = "/tmp/" + helper.uuid();
 fs.mkdirSync(env_location, 0750);
 stat = env.openSync({home:env_location});
 assert.equal(0, stat.code, stat.message);
-stat = db.openSync({env: env, file: helper.uuid(), retries: 4});
+
+var db = new bdb.Db(env);
+stat = db.openSync({file: helper.uuid(), retries: 4});
 assert.equal(0, stat.code, stat.message);
 
 var run = function(callback) {

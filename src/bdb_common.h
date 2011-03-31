@@ -10,6 +10,9 @@
 extern v8::Persistent<v8::String> status_code_sym;
 extern v8::Persistent<v8::String> err_message_sym;
 
+extern v8::Persistent<v8::String> key_sym;
+extern v8::Persistent<v8::String> val_sym;
+
 #define DB_RES(CODE, MSG, VAR)                                  \
   v8::Local<v8::Object> VAR = v8::Object::New();                \
   VAR->Set(status_code_sym, v8::Integer::New(CODE));            \
@@ -55,5 +58,44 @@ extern v8::Persistent<v8::String> err_message_sym;
   v8::Local<v8::Object> _ ## VAR = __ ## VAR->ToObject();   \
   char *VAR = node::Buffer::Data(_ ## VAR);                 \
   size_t VAR ## _len = node::Buffer::Length(_ ## VAR);
+
+#define TXN_BEGIN(DBOBJ)                         \
+  DB_ENV *&_env = DBOBJ->_env;                   \
+  DB_TXN *_txn = NULL;                           \
+  int _attempts = 0;                             \
+  int _rc = 0;                                   \
+again:                                           \
+  if (DBOBJ->_transactional) {                   \
+    _rc = _env->txn_begin(_env, NULL, &_txn, 0); \
+    if (_rc != 0)                                \
+      goto out;                                  \
+  }                                              \
+
+
+#define TXN_END(DBOBJ, STATUS)                                          \
+  if (DBOBJ->_transactional) {                                          \
+    if (STATUS == 0) {                                                  \
+      STATUS = _txn->commit(_txn, 0);                                   \
+    } else if (STATUS == DB_LOCK_DEADLOCK &&                            \
+               ++_attempts <= DBOBJ->_retries) {                        \
+      _txn->abort(_txn);                                                \
+      sched_yield();                                                    \
+      goto again;                                                       \
+    } else {                                                            \
+      _txn->abort(_txn);                                                \
+    }                                                                   \
+  }                                                                     \
+ out:
+
+#define INIT_DBT(NAME, LEN)                              \
+  DBT dbt_ ## NAME = {0};                                \
+  memset(&dbt_ ## NAME, 0, sizeof(DBT));                 \
+  dbt_ ## NAME.data = NAME;                              \
+  dbt_ ## NAME.size = LEN
+
+#define ALLOC_DBT(NAME)					 \
+	NAME = (DBT *)calloc(1, sizeof(DBT));		 \
+	NAME->flags = DB_DBT_MALLOC
+
 
 #endif  // BDB_COMMON_H__

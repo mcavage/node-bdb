@@ -32,6 +32,8 @@
     "node": ">=0.4.0"
   },
   "scripts": {
-    "preinstall": "node-waf configure build"
+    "preinstall": "node-waf configure build",
+    "postinstall": "scripts/postinstall.sh",
+    "preuninstall": "scripts/preuninstall.sh"
   }
 }

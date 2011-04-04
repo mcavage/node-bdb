@@ -14,6 +14,7 @@ class Db: public DbObject {
   static v8::Handle<v8::Value> AssociateS(const v8::Arguments &);
   static v8::Handle<v8::Value> CloseS(const v8::Arguments &);
   static v8::Handle<v8::Value> CursorGet(const v8::Arguments &);
+  static v8::Handle<v8::Value> CursorGetS(const v8::Arguments &);
   static v8::Handle<v8::Value> Del(const v8::Arguments &);
   static v8::Handle<v8::Value> DelS(const v8::Arguments &);
   static v8::Handle<v8::Value> Get(const v8::Arguments &);
@@ -21,6 +22,7 @@ class Db: public DbObject {
   static v8::Handle<v8::Value> New(const v8::Arguments &);
   static v8::Handle<v8::Value> OpenS(const v8::Arguments &);
   static v8::Handle<v8::Value> Put(const v8::Arguments &);
+  static v8::Handle<v8::Value> PutIf(const v8::Arguments &);
   static v8::Handle<v8::Value> PutS(const v8::Arguments &);
   static v8::Handle<v8::Value> SetEncrypt(const v8::Arguments &);
   static v8::Handle<v8::Value> SetFlags(const v8::Arguments &);
@@ -32,6 +34,7 @@ class Db: public DbObject {
   static int EIO_CursorGet(eio_req *req);
   static int EIO_AfterCursorGet(eio_req *req);
   static int EIO_Put(eio_req *req);
+  static int EIO_PutIf(eio_req *req);
   static int EIO_Del(eio_req *req);
 
  private:

@@ -13,6 +13,7 @@ using v8::String;
 
 v8::Persistent<v8::String> status_code_sym;
 v8::Persistent<v8::String> err_message_sym;
+v8::Persistent<v8::String> data_sym;
 v8::Persistent<v8::String> key_sym;
 v8::Persistent<v8::String> val_sym;
 
@@ -22,6 +23,7 @@ extern "C" {
 
     status_code_sym = NODE_PSYMBOL("code");
     err_message_sym = NODE_PSYMBOL("message");
+    data_sym = NODE_PSYMBOL("data");
     key_sym = NODE_PSYMBOL("key");
     val_sym = NODE_PSYMBOL("value");
 

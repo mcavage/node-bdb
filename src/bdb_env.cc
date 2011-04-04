@@ -1,4 +1,6 @@
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
+#include <errno.h>
+#include <stdio.h>
 #include <string>
 
 #include "bdb_common.h"
@@ -99,6 +101,63 @@ v8::Handle<v8::Value> DbEnv::OpenS(const v8::Arguments &args) {
   DB_RES(rc, db_strerror(rc), msg);
   return msg;
 }
+
+v8::Handle<v8::Value> DbEnv::SetEncrypt(const v8::Arguments& args) {
+  v8::HandleScope scope;
+
+  DbEnv* env = node::ObjectWrap::Unwrap<DbEnv>(args.This());
+  REQ_STR_ARG(0, passwd);
+
+  int rc = env->_env->set_encrypt(env->_env, *passwd, DB_ENCRYPT_AES);
+
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
+v8::Handle<v8::Value> DbEnv::SetErrorFile(const v8::Arguments &args) {
+  v8::HandleScope scope;
+
+  DbEnv* env = node::ObjectWrap::Unwrap<DbEnv>(args.This());
+  REQ_STR_ARG(0, fname);
+
+  FILE *fp = fopen(*fname, "a");
+  int rc = 0;
+  if (fp != NULL) {
+    env->_env->set_errfile(env->_env, fp);
+  } else {
+    rc = errno;
+  }
+
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
+v8::Handle<v8::Value> DbEnv::SetErrorPrefix(const v8::Arguments &args) {
+  v8::HandleScope scope;
+
+  DbEnv* env = node::ObjectWrap::Unwrap<DbEnv>(args.This());
+  REQ_STR_ARG(0, prefix);
+
+  // Yes, this is a memory leak, but BDB is just really stupid about this...
+  env->_env->set_errpfx(env->_env, strdup(*prefix));
+
+  DB_RES(0, db_strerror(0), msg);
+  return msg;
+}
+
+v8::Handle<v8::Value> DbEnv::SetFlags(const v8::Arguments& args) {
+  v8::HandleScope scope;
+
+  DbEnv* env = node::ObjectWrap::Unwrap<DbEnv>(args.This());
+  REQ_INT_ARG(0, flags);
+  REQ_INT_ARG(1, onoff);
+
+  int rc = env->_env->set_flags(env->_env, flags, onoff);
+
+  DB_RES(rc, db_strerror(rc), msg);
+  return msg;
+}
+
 
 v8::Handle<v8::Value> DbEnv::SetLockDetect(const v8::Arguments &args) {
   v8::HandleScope scope;
@@ -235,6 +294,10 @@ void DbEnv::Initialize(v8::Handle<v8::Object> target) {
 
   NODE_SET_PROTOTYPE_METHOD(t, "_closeSync", CloseS);
   NODE_SET_PROTOTYPE_METHOD(t, "_openSync", OpenS);
+  NODE_SET_PROTOTYPE_METHOD(t, "setEncrypt", SetEncrypt);
+  NODE_SET_PROTOTYPE_METHOD(t, "setErrorFile", SetErrorFile);
+  NODE_SET_PROTOTYPE_METHOD(t, "setErrorPrefix", SetErrorPrefix);
+  NODE_SET_PROTOTYPE_METHOD(t, "setFlags", SetFlags);
   NODE_SET_PROTOTYPE_METHOD(t, "setLockDetect", SetLockDetect);
   NODE_SET_PROTOTYPE_METHOD(t, "setLockTimeout", SetLockTimeout);
   NODE_SET_PROTOTYPE_METHOD(t, "setMaxLocks", SetMaxLocks);

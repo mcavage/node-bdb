@@ -6,7 +6,6 @@
 #include <v8.h>
 
 class Db;
-class DbCursor;
 class DbEnv;
 
 class DbObject: public node::ObjectWrap {
@@ -22,7 +21,6 @@ class DbObject: public node::ObjectWrap {
   DbObject &operator=(DbObject &);
 
   friend class Db;
-  friend class DbCursor;
   friend class DbEnv;
 };
 

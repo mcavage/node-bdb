@@ -19,6 +19,10 @@ class DbEnv: public DbObject {
   static v8::Handle<v8::Value> CloseS(const v8::Arguments &);
   static v8::Handle<v8::Value> New(const v8::Arguments &);
   static v8::Handle<v8::Value> OpenS(const v8::Arguments &);
+  static v8::Handle<v8::Value> SetEncrypt(const v8::Arguments &);
+  static v8::Handle<v8::Value> SetErrorFile(const v8::Arguments &);
+  static v8::Handle<v8::Value> SetErrorPrefix(const v8::Arguments &);
+  static v8::Handle<v8::Value> SetFlags(const v8::Arguments &);
   static v8::Handle<v8::Value> SetLockDetect(const v8::Arguments &);
   static v8::Handle<v8::Value> SetLockTimeout(const v8::Arguments &);
   static v8::Handle<v8::Value> SetMaxLocks(const v8::Arguments &);

@@ -10,6 +10,7 @@
 extern v8::Persistent<v8::String> status_code_sym;
 extern v8::Persistent<v8::String> err_message_sym;
 
+extern v8::Persistent<v8::String> data_sym;
 extern v8::Persistent<v8::String> key_sym;
 extern v8::Persistent<v8::String> val_sym;
 
@@ -93,9 +94,10 @@ again:                                           \
   dbt_ ## NAME.data = NAME;                              \
   dbt_ ## NAME.size = LEN
 
-#define ALLOC_DBT(NAME)					 \
-	NAME = (DBT *)calloc(1, sizeof(DBT));		 \
-	NAME->flags = DB_DBT_MALLOC
+#define ALLOC_DBT(NAME)                                  \
+  NAME = static_cast<DBT *>(calloc(1, sizeof(DBT)));     \
+  NAME->flags = DB_DBT_MALLOC
+
 
 
 #endif  // BDB_COMMON_H__

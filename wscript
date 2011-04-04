@@ -74,7 +74,7 @@ def configure(conf):
 
     if o.debug:
       args.append('--enable-debug=yes')
-    if sys.platform.startswith("sunos"):
+    if sys.platform.startswith("sunos") or sys.platform.startswith("darwin"):
       args.append('--enable-dtrace')
       args.append('--enable-perfmon-statistics')
 
@@ -132,6 +132,7 @@ def test(ctx):
   system('node test/test_get.js')
   system('node test/test_del.js')
   system('node test/test_concurrent.js')
+  system('node test/test_cursor.js')
 
 def distclean(ctx):
   os.chdir(bdb_bld_dir)

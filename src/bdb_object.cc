@@ -2,12 +2,15 @@
 #include "bdb_common.h"
 #include "bdb_object.h"
 
+#define ERR_MSG(RC)                                                     \
+  (RC == -2 ? "ConsistencyError" : db_strerror(RC))
+
 int DbObject::EIO_After_ReturnStatus(eio_req *req) {
   v8::HandleScope scope;
   EIOBaton *baton = static_cast<EIOBaton *>(req->data);
   ev_unref(EV_DEFAULT_UC);
 
-  DB_RES(baton->status, db_strerror(baton->status), msg);
+  DB_RES(baton->status, ERR_MSG(baton->status), msg);
   v8::Local<v8::Value> argv[1] = { msg };
 
   v8::TryCatch try_catch;

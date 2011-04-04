@@ -5,7 +5,7 @@
   "description" : "Berkeley DB(5.X) bindings for node",
   "repository" : {
     "type" : "git",
-    "url" : "http://github.com/mcavage/node-bdb.git"
+    "url" : "https://github.com/mcavage/node-bdb.git"
   },
   "author": "Mark Cavage <mcavage@gmail.com>",
   "keywords": ["bdb", "berkeleydb", "db", "database", "storage"],

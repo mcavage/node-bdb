@@ -1,7 +1,7 @@
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 #include <errno.h>
 #include <stdio.h>
-#include <string>
+#include <string.h>
 
 #include "bdb_common.h"
 #include "bdb_env.h"

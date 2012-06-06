@@ -29,13 +29,13 @@ class Db: public DbObject {
   static v8::Handle<v8::Value> Fd(const v8::Arguments &);
 
  protected:
-  static int EIO_Get(eio_req *req);
+  static void EIO_Get(eio_req *req);
   static int EIO_AfterGet(eio_req *req);
-  static int EIO_CursorGet(eio_req *req);
+  static void EIO_CursorGet(eio_req *req);
   static int EIO_AfterCursorGet(eio_req *req);
-  static int EIO_Put(eio_req *req);
-  static int EIO_PutIf(eio_req *req);
-  static int EIO_Del(eio_req *req);
+  static void EIO_Put(eio_req *req);
+  static void EIO_PutIf(eio_req *req);
+  static void EIO_Del(eio_req *req);
 
  private:
   Db(const Db &rhs);

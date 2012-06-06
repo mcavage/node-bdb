@@ -39,7 +39,7 @@ class DbEnv: public DbObject {
   DbEnv(const DbEnv &);
   DbEnv &operator=(const DbEnv &);
 
-  static int EIO_Checkpoint(eio_req *req);
+  static void EIO_Checkpoint(eio_req *req);
 
   bool _transactional;
   DB_ENV *_env;
